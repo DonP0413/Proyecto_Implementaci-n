@@ -1,0 +1,54 @@
+# Backlog inicial de PINTOTECH. Formato (separado por |):
+# clave|responsable|milestone|labels(coma)|puntos|título|cuerpo (\n = salto de línea)
+# responsable: JORGE | MIGUEL | ERICK  (el script lo traduce al login de GitHub)
+E-01|ERICK|Sprint 0 - Fundaciones|devops,documentation|2|Configurar repositorio, ramas protegidas y GitHub Projects|Crear repo, ramas main/develop protegidas (PR + 1 aprobación + CI verde), CODEOWNERS, labels, milestones y tablero.\n\n**DoD**\n- [ ] main y develop protegidas\n- [ ] Tablero con columnas Backlog/Ready/In Progress/Code Review/Testing/Done\n- [ ] Issues iniciales cargados
+E-02|ERICK|Sprint 0 - Fundaciones|documentation|3|Redactar PRY_001: necesidades, alcance, RF/RNF, HU y CA|Completar docs/01-analisis-requerimientos.md con la plantilla PRY_001 y validarlo con el cliente PINTOTECH (acta firmada).\n\n**DoD**\n- [ ] Alcance INCLUYE / NO INCLUYE aprobado por el cliente
+E-03|ERICK|Sprint 0 - Fundaciones|devops|3|Docker Compose de desarrollo con PostgreSQL 16|docker-compose.yml con postgres (volumen, healthcheck, puerto sólo localhost), backend y frontend. .env.example documentado.\n\n**CA**: Dado un clon limpio, Cuando ejecuto `docker compose up -d --build`, Entonces la app responde en http://localhost:8080.
+E-04|ERICK|Sprint 0 - Fundaciones|devops|3|Dockerfile backend multi-stage (non-root, healthcheck, migraciones en entrypoint)|Imagen final < 300 MB, usuario node, tini, HEALTHCHECK /health/live, RUN_MIGRATIONS/RUN_SEED.
+E-05|ERICK|Sprint 0 - Fundaciones|devops|2|Dockerfile frontend + Nginx (SPA + reverse proxy /api)|nginx-unprivileged, fallback SPA, caché de assets, cabeceras de seguridad y CSP.
+E-06|ERICK|Sprint 0 - Fundaciones|devops|3|Pipeline CI: lint, typecheck, tests, e2e con PostgreSQL y build|.github/workflows/ci.yml. Checks requeridos para merge.
+E-07|ERICK|Sprint 1 - Recepción e ingreso|devops|2|Análisis de calidad y seguridad: CodeQL, SonarCloud y Dependabot|codeql.yml, sonar-project.properties, dependabot.yml.
+E-08|ERICK|Sprint 1 - Recepción e ingreso|devops|3|Configurar dominio en Mailgun (SPF, DKIM, DMARC) y API keys por entorno|Dominio mg.<cliente>. Registrar DNS, verificar, crear API key de envío por entorno y cargarlas como secretos de GitHub Environments.
+E-09|ERICK|Sprint 2 - Seguimiento y cotización|devops|5|Pipeline CD: imágenes a GHCR, Trivy y deploy automático a staging|.github/workflows/cd.yml + scripts/deploy.sh. develop -> staging automático.
+E-10|ERICK|Sprint 3 - Registro técnico, entrega y consulta|devops|3|Backups programados, restore y rollback probado|backup-db.sh (cron 23:00, retención 14 días), restore-db.sh, simulacro de rollback documentado.
+E-11|ERICK|Sprint 3 - Registro técnico, entrega y consulta|devops|3|Observabilidad: Prometheus, Grafana, Uptime Kuma y alertas|infra/monitoring. Alertas: backend caído, correos fallidos, latencia p95 > 2.5 s.
+E-12|ERICK|Sprint 1 - Recepción e ingreso|qa|2|QA funcional Sprint 1: registro de ingreso, comprobante y correo|Ejecutar casos CA de HU-01..HU-05 en staging y registrar bugs.
+E-13|ERICK|Sprint 2 - Seguimiento y cotización|qa|2|QA funcional Sprint 2: estados, cotización y notificaciones manuales|Casos CA de HU-06..HU-09.
+E-14|ERICK|Sprint 3 - Registro técnico, entrega y consulta|qa|3|QA Sprint 3 + UAT con el cliente (datos de los últimos 3 meses)|Carga de datos reales anonimizados en staging, UAT y acta de aceptación.
+E-15|ERICK|Sprint 4 - Calidad y release v1.0.0|devops,urgent|3|Release v1.0.0 a producción (checklist de despliegue)|Pruebas aprobadas, backup, plan de rollback, ventana 20:00-22:00 notificada al cliente, tag v1.0.0.
+E-16|ERICK|Sprint 4 - Calidad y release v1.0.0|documentation|3|Manual de usuario y capacitación al personal de PINTOTECH|Guía con capturas por rol (recepción, técnico, administrador).
+J-01|JORGE|Sprint 0 - Fundaciones|backend|3|Estructura base NestJS: configuración validada, logging, manejo de errores|ConfigModule + Joi, nestjs-pino con request-id, AllExceptionsFilter, ValidationPipe global, Swagger.
+J-02|JORGE|Sprint 0 - Fundaciones|backend|3|Esquema SQL V1/V2 y ejecutor de migraciones versionadas|database/migrations, migration-runner con checksum y advisory lock, comandos migrate/seed.
+J-03|JORGE|Sprint 0 - Fundaciones|backend|3|Autenticación JWT y autorización por roles (RBAC)|POST /auth/login (rate limit 5/min), GET /auth/me, guards globales JwtAuthGuard y RolesGuard.
+J-04|JORGE|Sprint 1 - Recepción e ingreso|backend|2|Módulo de usuarios (alta, rol, activación, reseteo de contraseña)|Sólo ADMIN. bcrypt costo 12. No se eliminan usuarios (auditoría).
+J-05|JORGE|Sprint 1 - Recepción e ingreso|backend|2|Módulo de clientes (búsqueda, alta, edición)|Búsqueda por nombre/documento/correo/teléfono con índice trigram. Documento único.
+J-06|JORGE|Sprint 1 - Recepción e ingreso|backend|2|Equipos y catálogo de tipos con características dinámicas|GET /equipment-types (spec_schema), reutilización de equipo por serie, normalización de specs.
+J-07|JORGE|Sprint 1 - Recepción e ingreso|backend|8|RF-01/RF-02: registro de ingreso de la orden con estado de recepción|POST /work-orders multipart. Código PT-AAAA-NNNNNN. Transacción única. Historial de estado inicial.
+J-08|JORGE|Sprint 1 - Recepción e ingreso|backend|3|Almacenamiento de fotos y adjuntos con validación por magic bytes|Puerto FileStorage + adaptador local. Compensación de archivos huérfanos.
+J-09|JORGE|Sprint 1 - Recepción e ingreso|backend|3|RF-03: comprobante de ingreso en PDF|pdfkit. Se guarda como RECEIPT_PDF. GET /work-orders/:id/receipt.
+J-10|JORGE|Sprint 1 - Recepción e ingreso|backend|8|RF-04: integración Mailgun con outbox, worker, reintentos y plantillas|Adaptadores mailgun/console, tabla notifications, SKIP LOCKED, backoff exponencial, Handlebars.
+J-11|JORGE|Sprint 2 - Seguimiento y cotización|backend|3|RF-05: máquina de estados y cambio de estado con auditoría|PATCH /work-orders/:id/status, transiciones válidas, bloqueo pesimista.
+J-12|JORGE|Sprint 2 - Seguimiento y cotización|backend|3|RF-06: registro de cotizaciones|POST /work-orders/:id/quotations -> COTIZACION_GENERADA. Re-cotización.
+J-13|JORGE|Sprint 2 - Seguimiento y cotización|backend|3|RF-06: botones de notificación manual (cotización / listo para retirar)|POST .../notifications/quotation y .../ready-for-pickup con validación de estado y anti-duplicado.
+J-14|JORGE|Sprint 3 - Registro técnico, entrega y consulta|backend|3|RF-07: registro técnico interno con documentos de respaldo|POST .../technical-logs multipart. Visibilidad INTERNAL forzada por dominio y CHECK en BD.
+J-15|JORGE|Sprint 3 - Registro técnico, entrega y consulta|backend|5|RF-07/RF-08: registro de entrega y notificación automática|POST .../delivery multipart. Accesorios devueltos, foto de entrega, correo DELIVERY.
+J-16|JORGE|Sprint 3 - Registro técnico, entrega y consulta|backend|3|RF-09: búsqueda por ID, cliente, serie, fecha y estado + estadísticas|GET /work-orders con filtros combinables y paginación; GET /work-orders/stats; GET /work-orders/by-code/:code.
+J-17|JORGE|Sprint 3 - Registro técnico, entrega y consulta|backend|2|Health checks y métricas Prometheus|/health/live, /health/ready, /metrics con métricas de negocio.
+J-18|JORGE|Sprint 4 - Calidad y release v1.0.0|backend|3|Pruebas e2e del flujo completo y cobertura >= 70% en dominio/aplicación|test/work-orders.e2e-spec.ts en CI con PostgreSQL.
+J-19|JORGE|Sprint 4 - Calidad y release v1.0.0|backend,urgent|2|Hardening de seguridad backend|Revisión OWASP: helmet, CORS, rate limit, tamaños de archivo, mensajes genéricos, dependencias.
+M-01|MIGUEL|Sprint 0 - Fundaciones|frontend|2|Proyecto React + Vite + TypeScript con ESLint y Vitest|Estructura por features, alias de entorno, proxy de desarrollo.
+M-02|MIGUEL|Sprint 0 - Fundaciones|frontend|3|Layout, navegación y design system base|AppLayout, Button, campos de formulario accesibles, Card, Modal, Toaster, estilos globales.
+M-03|MIGUEL|Sprint 1 - Recepción e ingreso|frontend|2|Login y rutas protegidas por rol|LoginPage con validación Zod, sesión en sessionStorage, cierre automático ante 401.
+M-04|MIGUEL|Sprint 1 - Recepción e ingreso|frontend|2|Cliente HTTP, React Query y manejo centralizado de errores|axios + interceptores, endpoints por recurso, getErrorMessage.
+M-05|MIGUEL|Sprint 1 - Recepción e ingreso|frontend|8|RF-01/RF-02: formulario de registro de ingreso|Cliente existente/nuevo, equipo con características dinámicas, estado de recepción, accesorios.
+M-06|MIGUEL|Sprint 1 - Recepción e ingreso|frontend|3|Carga de fotografías con vista previa (cámara en móvil)|FilePicker con límite de cantidad y tamaño.
+M-07|MIGUEL|Sprint 2 - Seguimiento y cotización|frontend|5|Detalle de la orden con pestañas y barra de progreso|WorkOrderDetailPage, ReceptionSection, StatusProgress, descarga de comprobante.
+M-08|MIGUEL|Sprint 2 - Seguimiento y cotización|frontend|5|RF-05/RF-06: seguimiento, cambio de estado y botones de notificación|TrackingSection con confirmaciones y asignación de técnico.
+M-09|MIGUEL|Sprint 2 - Seguimiento y cotización|frontend|3|RF-06: pantalla de cotización|QuotationSection: registrar y ver historial (vigente / enviada).
+M-10|MIGUEL|Sprint 3 - Registro técnico, entrega y consulta|frontend|3|RF-07: registro técnico interno (zona marcada como interna)|TechnicalLogSection con documentos de respaldo.
+M-11|MIGUEL|Sprint 3 - Registro técnico, entrega y consulta|frontend|5|RF-07/RF-08: registro de entrega|DeliverySection con accesorios devueltos y foto de entrega.
+M-12|MIGUEL|Sprint 3 - Registro técnico, entrega y consulta|frontend|5|RF-09: listado y filtros de órdenes|WorkOrdersListPage + WorkOrderFilters + paginación.
+M-13|MIGUEL|Sprint 3 - Registro técnico, entrega y consulta|frontend|3|Historial de correos por orden y bandeja de correos fallidos|NotificationsSection, FailedNotificationsPage, reintento.
+M-14|MIGUEL|Sprint 3 - Registro técnico, entrega y consulta|frontend|3|Gestión de clientes e historial por cliente|ClientsPage con modal de alta/edición.
+M-15|MIGUEL|Sprint 3 - Registro técnico, entrega y consulta|frontend|2|Gestión de usuarios (ADMIN) y tablero de estadísticas|UsersPage, DashboardPage con búsqueda rápida por ID.
+M-16|MIGUEL|Sprint 4 - Calidad y release v1.0.0|frontend|3|Accesibilidad (WCAG AA), responsive y pruebas de componentes|Revisión con lector de pantalla y tablet del mostrador; tests de formularios.

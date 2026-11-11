@@ -1,0 +1,11 @@
+# Objetivo: asignar revisores obligatorios por área.
+# Reemplazar los usuarios por los logins reales de GitHub del equipo.
+*                       @ERICK_GITHUB_USER
+/backend/               @JORGE_GITHUB_USER
+/database/              @JORGE_GITHUB_USER @ERICK_GITHUB_USER
+/frontend/              @MIGUEL_GITHUB_USER
+/.github/               @ERICK_GITHUB_USER
+/docker-compose*.yml    @ERICK_GITHUB_USER
+/infra/                 @ERICK_GITHUB_USER
+/scripts/               @ERICK_GITHUB_USER
+/docs/                  @ERICK_GITHUB_USER

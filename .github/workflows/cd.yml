@@ -1,0 +1,133 @@
+# =============================================================================
+# CD — Entrega continua siguiendo la progresión de entornos de la cátedra:
+#   develop        -> imágenes :develop + :sha  -> deploy automático a STAGING (QA)
+#   tag vX.Y.Z     -> imágenes :X.Y.Z + :latest -> deploy a PRODUCCIÓN
+#                     (requiere aprobación manual del environment "production")
+# Antes de desplegar: escaneo de vulnerabilidades (Trivy). En el servidor,
+# scripts/deploy.sh hace backup de la BD, despliega, verifica salud y hace
+# rollback automático si falla.
+# =============================================================================
+name: CD
+
+on:
+  push:
+    branches: [develop]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Entorno destino'
+        required: true
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: 'Tag de imagen a desplegar (ej. 1.2.0 o develop)'
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  build-push:
+    name: build & push ${{ matrix.service }}
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: backend
+            context: .
+            dockerfile: backend/Dockerfile
+          - service: frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/pintotech-${{ matrix.service }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=ref,event=branch
+            type=sha,prefix=sha-
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.version }}+build.${{ github.run_number }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+      - name: Escaneo de vulnerabilidades (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/pintotech-${{ matrix.service }}:sha-${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+  deploy-staging:
+    name: deploy → staging
+    needs: build-push
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    concurrency: deploy-staging
+    steps:
+      - name: Desplegar vía SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ${{ vars.DEPLOY_PATH }}
+            ./scripts/deploy.sh "${{ inputs.image_tag || format('sha-{0}', github.sha) }}"
+
+  deploy-production:
+    name: deploy → production
+    needs: build-push
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    runs-on: ubuntu-latest
+    environment:
+      name: production   # Protegido: requiere aprobación de Erick (PO) en GitHub
+      url: ${{ vars.PRODUCTION_URL }}
+    concurrency: deploy-production
+    steps:
+      - name: Desplegar vía SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd ${{ vars.DEPLOY_PATH }}
+            ./scripts/deploy.sh "${{ inputs.image_tag || github.ref_name }}"
