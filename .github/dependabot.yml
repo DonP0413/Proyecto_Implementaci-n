@@ -1,0 +1,29 @@
+# Objetivo: actualizaciones de dependencias semanales agrupadas (seguridad).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule: { interval: weekly, day: monday }
+    target-branch: develop
+    labels: [backend, dependencies]
+    groups:
+      nestjs: { patterns: ['@nestjs/*'] }
+      dev-tools: { dependency-type: development }
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly, day: monday }
+    target-branch: develop
+    labels: [frontend, dependencies]
+    groups:
+      react: { patterns: ['react', 'react-dom', '@types/react*'] }
+      dev-tools: { dependency-type: development }
+  - package-ecosystem: docker
+    directory: /backend
+    schedule: { interval: monthly }
+    target-branch: develop
+    labels: [devops, dependencies]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    target-branch: develop
+    labels: [devops, dependencies]

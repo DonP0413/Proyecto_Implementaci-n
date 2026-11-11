@@ -1,0 +1,38 @@
+name: Historia de usuario
+description: Nueva funcionalidad descrita como historia de usuario (HU)
+title: '[HU-XX] '
+labels: [enhancement]
+body:
+  - type: input
+    id: rf
+    attributes:
+      label: Requerimiento funcional
+      placeholder: RF-04
+    validations: { required: true }
+  - type: textarea
+    id: story
+    attributes:
+      label: Historia
+      value: |
+        Como [actor]
+        Quiero [acción]
+        Para [beneficio]
+    validations: { required: true }
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Criterios de aceptación (Dado / Cuando / Entonces)
+      value: |
+        - CA-1: Dado ..., Cuando ..., Entonces ...
+    validations: { required: true }
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options: [backend, frontend, devops, fullstack]
+    validations: { required: true }
+  - type: dropdown
+    id: size
+    attributes:
+      label: Estimación (puntos)
+      options: ['1', '2', '3', '5', '8', '13']
