@@ -12,4 +12,10 @@ backend/storage-e2e
 docs
 backups
 frontend
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
 *.log
