@@ -17,10 +17,10 @@ interface Props {
   errors: FieldErrors<NewWorkOrderFormValues>;
 }
 
-const fieldLabel = (field: SpecField) => (field.unit ? `${field.label} (${field.unit})` : field.label);
+export const fieldLabel = (field: SpecField) => (field.unit ? `${field.label} (${field.unit})` : field.label);
 
 /** Agrupa conservando el orden del catálogo; los campos sin grupo van primero. */
-const groupFields = (fields: SpecField[]) => {
+export const groupFields = (fields: SpecField[]) => {
   const groups = new Map<string, SpecField[]>();
   fields.forEach((field) => {
     const name = field.group ?? '';

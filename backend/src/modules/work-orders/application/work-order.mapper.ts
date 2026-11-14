@@ -85,9 +85,11 @@ export class WorkOrderMapper {
         email: entity.client.email,
         phone: entity.client.phone,
         documentId: entity.client.documentId,
+        address: entity.client.address,
       },
       equipment: {
         id: entity.equipment.id,
+        equipmentTypeId: entity.equipment.equipmentTypeId,
         typeName: entity.equipment.equipmentType?.name ?? '',
         brand: entity.equipment.brand,
         model: entity.equipment.model,
@@ -113,6 +115,7 @@ export class WorkOrderMapper {
         label: WORK_ORDER_STATUS_LABELS[status],
       })),
       actions: {
+        canEditIntake: entity.status === WorkOrderStatus.INGRESADO,
         canCreateQuotation: [WorkOrderStatus.EN_REVISION, WorkOrderStatus.COTIZACION_GENERADA].includes(
           entity.status,
         ),
@@ -123,6 +126,7 @@ export class WorkOrderMapper {
       clientVisible: {
         reportedIssue: entity.reportedIssue,
         specs: specsWithLabels(entity.equipment.equipmentType?.specSchema, entity.specsSnapshot),
+        rawSpecs: entity.specsSnapshot ?? {},
         reception: rc
           ? {
               powerStatus: rc.powerStatus,

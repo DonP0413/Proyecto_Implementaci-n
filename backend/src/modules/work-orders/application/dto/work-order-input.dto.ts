@@ -157,12 +157,44 @@ export class AssignTechnicianDto {
   technicianId: string | null;
 }
 
+export class UpdateWorkOrderIntakeDto {
+  @ApiProperty({ type: CreateClientDto })
+  @ValidateNested()
+  @Type(() => CreateClientDto)
+  client: CreateClientDto;
+
+  @ApiProperty({ type: EquipmentInputDto })
+  @ValidateNested()
+  @Type(() => EquipmentInputDto)
+  equipment: EquipmentInputDto;
+
+  @ApiProperty({ example: 'El equipo se apaga solo después de 10 minutos de uso' })
+  @Transform(trim)
+  @IsString()
+  @Length(3, 2000)
+  reportedIssue: string;
+
+  @ApiProperty({ type: ReceptionConditionInputDto })
+  @ValidateNested()
+  @Type(() => ReceptionConditionInputDto)
+  reception: ReceptionConditionInputDto;
+
+  @ApiPropertyOptional({ example: '2026-11-15', nullable: true })
+  @IsOptional()
+  @ValidateIf((_o, value) => value !== null && value !== '')
+  @IsDateString({ strict: true })
+  estimatedDeliveryDate?: string | null;
+}
+
 export class CreateQuotationDto {
   @ApiProperty({ example: 85.5 })
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false })
-  @Min(0)
-  @Max(99_999_999.99)
+  @IsNumber(
+    { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false },
+    { message: 'Ingrese un valor válido (solo números, ej.: 45.50)' },
+  )
+  @Min(0, { message: 'El valor no puede ser negativo. Ingrese un valor válido' })
+  @Max(99_999_999.99, { message: 'El valor supera el máximo permitido' })
   amount: number;
 
   @ApiProperty({ example: 'Cambio de pantalla 15.6" FHD + mano de obra' })
@@ -197,9 +229,12 @@ export class RegisterDeliveryDto {
 
   @ApiProperty({ example: 85.5 })
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false })
-  @Min(0)
-  @Max(99_999_999.99)
+  @IsNumber(
+    { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false },
+    { message: 'Ingrese un valor válido para el valor cobrado (solo números, ej.: 45.50)' },
+  )
+  @Min(0, { message: 'El valor cobrado no puede ser negativo. Ingrese un valor válido' })
+  @Max(99_999_999.99, { message: 'El valor cobrado supera el máximo permitido' })
   amountCharged: number;
 
   @ApiProperty({ example: 'Equipo funcional, limpio, sin daños adicionales.' })
@@ -277,6 +312,10 @@ export class WorkOrderQueryDto extends PaginationQueryDto {
   client?: string;
 
   @ApiPropertyOptional() @IsOptional() @IsUUID() clientId?: string;
+  @ApiPropertyOptional({ description: 'Filtrar por un equipo físico específico' })
+  @IsOptional()
+  @IsUUID()
+  equipmentId?: string;
 
   @ApiPropertyOptional({ description: 'Número de serie (parcial)' })
   @IsOptional()

@@ -10,7 +10,6 @@ import type { WorkOrderDetail } from '../../../api/types';
 import { Button } from '../../../components/ui/Button';
 import { Alert, Card } from '../../../components/ui/Feedback';
 import { Textarea } from '../../../components/ui/FormField';
-import { ConfirmDialog } from '../../../components/ui/Modal';
 import { getErrorMessage } from '../../../lib/errors';
 import { emptyToUndefined, formatDateTime } from '../../../lib/format';
 import { useAuthStore } from '../../../stores/authStore';
@@ -21,18 +20,17 @@ import { useAddTechnicalLog } from '../hooks';
 import { technicalLogSchema, type TechnicalLogFormValues } from '../schemas';
 
 const FIELDS: Array<{ key: keyof TechnicalLogFormValues; label: string }> = [
-  { key: 'diagnosis', label: 'Diagnóstico' },
-  { key: 'procedures', label: 'Procedimientos realizados' },
+  { key: 'observations', label: 'Observaciones' },
+  { key: 'diagnosis', label: 'Diagnósticos' },
   { key: 'configurations', label: 'Configuraciones' },
-  { key: 'spareParts', label: 'Repuestos utilizados' },
-  { key: 'observations', label: 'Novedades / observaciones' },
+  { key: 'spareParts', label: 'Repuestos' },
+  { key: 'procedures', label: 'Novedades técnicas' },
 ];
 
 export function TechnicalLogSection({ wo }: { wo: WorkOrderDetail }) {
-  const isTechnician = useAuthStore((s) => s.hasRole('TECNICO'));
+  const canAddLog = useAuthStore((s) => s.hasRole('TECNICO', 'RECEPCIONISTA'));
   const [documents, setDocuments] = useState<File[]>([]);
   const addLog = useAddTechnicalLog(wo.id);
-  const [pendingLog, setPendingLog] = useState<TechnicalLogFormValues | null>(null);
   const {
     register,
     handleSubmit,
@@ -57,41 +55,33 @@ export function TechnicalLogSection({ wo }: { wo: WorkOrderDetail }) {
         <strong>Información interna.</strong> Este registro no es visible para el cliente y no se incluye en correos ni comprobantes.
       </Alert>
       <div className="grid-2">
-        {isTechnician && (
+        {canAddLog && (
           <Card title="Nuevo registro técnico">
-            <form onSubmit={handleSubmit(setPendingLog)} noValidate>
+            <form onSubmit={handleSubmit(onSubmit)} noValidate>
               {FIELDS.map((f, i) => (
-                <Textarea key={f.key} label={f.label} rows={3} error={i === 0 ? errors.diagnosis?.message : errors[f.key]?.message} {...register(f.key)} />
+                <Textarea
+                  key={f.key}
+                  label={f.label}
+                  rows={3}
+                  error={i === 0 ? errors.observations?.message || errors.diagnosis?.message : errors[f.key]?.message}
+                  {...register(f.key)}
+                />
               ))}
               <FilePicker
-                label="Documentos de respaldo"
+                label="Documentos de respaldo (opcional)"
                 files={documents}
                 onChange={setDocuments}
                 accept="image/jpeg,image/png,image/webp,application/pdf,.docx,.xlsx,.txt"
                 maxFiles={6}
-                hint="PDF, imágenes, Word, Excel o texto. Máx. 6 archivos de 8 MB."
+                hint="Opcional · PDF, imágenes, Word, Excel o texto. Máx. 6 archivos de 8 MB."
               />
               <Button type="submit" loading={addLog.isPending}>
                 Guardar registro
               </Button>
             </form>
-            <ConfirmDialog
-              open={!!pendingLog}
-              title="¿Está seguro de guardar el registro técnico?"
-              confirmLabel="Sí, guardar"
-              loading={addLog.isPending}
-              onCancel={() => setPendingLog(null)}
-              onConfirm={() => pendingLog && onSubmit(pendingLog).finally(() => setPendingLog(null))}
-              message={
-                <p>
-                  El registro quedará en la bitácora interna de la orden <strong>{wo.code}</strong>
-                  {documents.length > 0 ? ` con ${documents.length} documento(s)` : ''} y no podrá editarse ni eliminarse después.
-                </p>
-              }
-            />
           </Card>
         )}
-        <Card title={`Bitácora técnica (${wo.internal.technicalLogs.length})`} className={isTechnician ? '' : 'span-2'}>
+        <Card title={`Bitácora técnica (${wo.internal.technicalLogs.length})`} className={canAddLog ? '' : 'span-2'}>
           {wo.internal.technicalLogs.length === 0 ? (
             <p className="muted">Sin registros técnicos.</p>
           ) : (

@@ -1,23 +1,19 @@
-/** Objetivo: historial de correos de la orden con su estado de envío y reintento manual. */
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { notificationsApi } from '../../../api/endpoints';
+/** Objetivo: historial de correos de la orden con vista previa, estado de envío y reintento manual. */
+import { useState } from 'react';
+import type { NotificationItem } from '../../../api/types';
 import { Button } from '../../../components/ui/Button';
 import { Badge, Card, Spinner } from '../../../components/ui/Feedback';
-import { getErrorMessage } from '../../../lib/errors';
 import { formatDateTime } from '../../../lib/format';
 import { useAuthStore } from '../../../stores/authStore';
-import { toast } from '../../../stores/toastStore';
+import { NotificationPreviewModal, NotificationRetryModal } from '../../notifications/NotificationModals';
 import { NOTIFICATION_STATUS_LABELS, NOTIFICATION_STATUS_TONES } from '../constants';
-import { useWorkOrderNotifications, workOrderKeys } from '../hooks';
+import { useWorkOrderNotifications } from '../hooks';
 
 export function NotificationsSection({ workOrderId }: { workOrderId: string }) {
   const { data, isLoading } = useWorkOrderNotifications(workOrderId);
-  const canRetry = useAuthStore((s) => s.hasRole('RECEPCIONISTA'));
-  const queryClient = useQueryClient();
-  const retry = useMutation({
-    mutationFn: notificationsApi.retry,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: workOrderKeys.notifications(workOrderId) }),
-  });
+  const canOperate = useAuthStore((s) => s.hasRole('RECEPCIONISTA', 'TECNICO'));
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [toRetry, setToRetry] = useState<NotificationItem | null>(null);
 
   if (isLoading) return <Spinner />;
   return (
@@ -53,27 +49,26 @@ export function NotificationsSection({ workOrderId }: { workOrderId: string }) {
                 </td>
                 <td>{formatDateTime(n.sentAt ?? n.createdAt)}</td>
                 <td>
-                  {n.status === 'FAILED' && canRetry && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      loading={retry.isPending && retry.variables === n.id}
-                      onClick={() =>
-                        retry
-                          .mutateAsync(n.id)
-                          .then(() => toast.success('Reintento programado'))
-                          .catch((e) => toast.error(getErrorMessage(e)))
-                      }
-                    >
-                      Reintentar
-                    </Button>
-                  )}
+                  <div className="button-row">
+                    {canOperate && (
+                      <Button size="sm" variant="secondary" onClick={() => setPreviewId(n.id)}>
+                        Ver correo
+                      </Button>
+                    )}
+                    {n.status === 'FAILED' && canOperate && (
+                      <Button size="sm" onClick={() => setToRetry(n)}>
+                        Reintentar
+                      </Button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      <NotificationPreviewModal notificationId={previewId} onClose={() => setPreviewId(null)} />
+      <NotificationRetryModal notification={toRetry} onClose={() => setToRetry(null)} />
     </Card>
   );
 }

@@ -61,7 +61,7 @@ export interface Client {
 
 export interface ClientInput {
   fullName: string;
-  documentId?: string;
+  documentId: string;
   email: string;
   phone?: string;
   address?: string;
@@ -97,6 +97,17 @@ export interface EquipmentType {
   specSchema: SpecField[];
 }
 
+export interface EquipmentMatch {
+  id: string;
+  clientId: string;
+  client?: { id: string; fullName: string; documentId: string | null };
+  equipmentType: { id: number; code: string; name: string };
+  brand: string;
+  model: string;
+  serialNumber: string | null;
+  technicalSpecs: Record<string, string>;
+}
+
 export interface PersonRef {
   id: string;
   fullName: string;
@@ -122,8 +133,8 @@ export interface WorkOrderSummary {
   receivedAt: string;
   estimatedDeliveryDate: string | null;
   deliveredAt: string | null;
-  client: { id: string; fullName: string; email: string; phone: string | null; documentId: string | null };
-  equipment: { id: string; typeName: string; brand: string; model: string; serialNumber: string | null };
+  client: { id: string; fullName: string; email: string; phone: string | null; documentId: string | null; address?: string | null };
+  equipment: { id: string; equipmentTypeId?: number; typeName: string; brand: string; model: string; serialNumber: string | null };
   assignedTechnician: PersonRef | null;
 }
 
@@ -161,6 +172,7 @@ export interface WorkOrderDetail extends WorkOrderSummary {
   receivedBy: PersonRef | null;
   allowedTransitions: Array<{ status: WorkOrderStatus; label: string }>;
   actions: {
+    canEditIntake?: boolean;
     canCreateQuotation: boolean;
     canSendQuotation: boolean;
     canNotifyReadyForPickup: boolean;
@@ -169,6 +181,7 @@ export interface WorkOrderDetail extends WorkOrderSummary {
   clientVisible: {
     reportedIssue: string;
     specs: Array<{ key: string; label: string; value: string }>;
+    rawSpecs?: Record<string, string>;
     reception: {
       powerStatus: PowerStatus;
       powerStatusLabel: string;
@@ -216,8 +229,9 @@ export interface CreateWorkOrderRequest {
     equipmentTypeId: number;
     brand: string;
     model: string;
-    serialNumber?: string;
+    serialNumber: string;
     technicalSpecs?: Record<string, string>;
+    forceNewEquipment?: boolean;
   };
   reportedIssue: string;
   reception: {
@@ -233,11 +247,37 @@ export interface CreateWorkOrderRequest {
   receivedAt?: string;
 }
 
+export interface UpdateWorkOrderIntakeRequest {
+  client: {
+    fullName: string;
+    documentId: string;
+    email: string;
+    phone?: string | null;
+    address?: string | null;
+  };
+  equipment: {
+    equipmentTypeId: number;
+    brand: string;
+    model: string;
+    serialNumber: string;
+    technicalSpecs?: Record<string, string>;
+  };
+  reportedIssue: string;
+  reception: {
+    powerStatus: PowerStatus;
+    physicalCondition: PhysicalCondition;
+    visibleDamage?: string;
+    functionalNotes?: string;
+  };
+  estimatedDeliveryDate?: string | null;
+}
+
 export interface WorkOrderFilters {
   q?: string;
   code?: string;
   client?: string;
   clientId?: string;
+  equipmentId?: string;
   serial?: string;
   status?: WorkOrderStatus[];
   dateFrom?: string;
@@ -255,6 +295,7 @@ export interface WorkOrderStats {
 export interface NotificationItem {
   id: string;
   workOrderId: string;
+  workOrderCode?: string | null;
   type: NotificationType;
   typeLabel: string;
   trigger: 'AUTOMATIC' | 'MANUAL';
@@ -267,4 +308,14 @@ export interface NotificationItem {
   sentAt: string | null;
   nextAttemptAt: string;
   createdAt: string;
+}
+
+export interface NotificationPreview {
+  id: string;
+  subject: string;
+  recipientEmail: string;
+  typeLabel: string;
+  status: NotificationStatus;
+  html: string;
+  text: string;
 }

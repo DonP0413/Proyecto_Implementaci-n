@@ -21,6 +21,12 @@ describe('WorkOrderStateMachine', () => {
     expect(() => WorkOrderStateMachine.assertTransition(from, to)).toThrow(BusinessRuleError);
   });
 
+  it('indica el siguiente estado permitido al rechazar INGRESADO -> ENTREGADO', () => {
+    expect(() => WorkOrderStateMachine.assertTransition(S.INGRESADO, S.ENTREGADO)).toThrow(
+      'Siguiente estado permitido: "En revisión"',
+    );
+  });
+
   it('ENTREGADO es estado terminal', () => {
     expect(WorkOrderStateMachine.allowedTransitions(S.ENTREGADO)).toEqual([]);
   });

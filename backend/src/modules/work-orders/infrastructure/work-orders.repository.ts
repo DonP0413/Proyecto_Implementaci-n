@@ -52,6 +52,23 @@ export class WorkOrdersRepository {
     return repo.save(repo.create(data));
   }
 
+  async updateReception(
+    workOrderId: string,
+    changes: Partial<ReceptionConditionEntity>,
+    manager: EntityManager,
+  ): Promise<void> {
+    await manager.getRepository(ReceptionConditionEntity).update({ workOrderId }, changes);
+  }
+
+  async deleteAttachmentsByCategory(
+    workOrderId: string,
+    categories: AttachmentCategory[],
+    manager: EntityManager,
+  ): Promise<void> {
+    if (categories.length === 0) return;
+    await manager.getRepository(AttachmentEntity).delete({ workOrderId, category: In(categories) });
+  }
+
   saveAccessories(
     items: Array<Partial<WorkOrderAccessoryEntity>>,
     manager: EntityManager,

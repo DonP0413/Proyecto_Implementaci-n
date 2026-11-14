@@ -26,6 +26,34 @@ type MailgunMessage = Parameters<MailgunClient['messages']['create']>[1];
 export const isPermanentStatus = (status?: number): boolean =>
   status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
 
+const SANDBOX_RE = /sandbox subdomains|authorized recipients/i;
+const INVALID_RECIPIENT_RE = /not a valid address|invalid.*recipient|recipient/i;
+
+export const formatMailgunError = (err: {
+  status?: number;
+  message?: string;
+  details?: string;
+}): { message: string; permanent: boolean; status?: number } => {
+  const status = typeof err.status === 'number' ? err.status : undefined;
+  const raw = (err.details || err.message || 'error desconocido').trim();
+  const permanent = isPermanentStatus(status) || SANDBOX_RE.test(raw) || INVALID_RECIPIENT_RE.test(raw);
+  if (SANDBOX_RE.test(raw)) {
+    return {
+      status,
+      permanent: true,
+      message: `Mailgun ${status ?? 403}: Destinatario no autorizado en dominio Sandbox gratuito (${raw})`,
+    };
+  }
+  if (status === 400 || INVALID_RECIPIENT_RE.test(raw)) {
+    return {
+      status,
+      permanent: true,
+      message: `Mailgun ${status ?? 400}: Dirección de correo rechazada o inválida (${raw})`,
+    };
+  }
+  return { status, permanent, message: `Mailgun ${status ?? 'NETWORK'}: ${raw}` };
+};
+
 export class MailgunMailAdapter implements MailSender {
   readonly provider = 'mailgun';
   private readonly logger = new Logger(MailgunMailAdapter.name);
@@ -72,9 +100,8 @@ export class MailgunMailAdapter implements MailSender {
       return { provider: this.provider, messageId };
     } catch (error) {
       const err = error as { status?: number; message?: string; details?: string };
-      const status = typeof err.status === 'number' ? err.status : undefined;
-      const message = `Mailgun ${status ?? 'NETWORK'}: ${err.details ?? err.message ?? 'error desconocido'}`;
-      throw new MailDeliveryError(message, isPermanentStatus(status), status);
+      const formatted = formatMailgunError(err);
+      throw new MailDeliveryError(formatted.message, formatted.permanent, formatted.status);
     }
   }
 }

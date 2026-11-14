@@ -27,13 +27,23 @@ export const useWorkOrderNotifications = (id: string) =>
   useQuery({
     queryKey: workOrderKeys.notifications(id),
     queryFn: () => workOrdersApi.notifications(id),
-    // Mientras haya correos pendientes, refrescar cada 5 s para ver el resultado del envío
+    enabled: !!id,
+    // Mientras haya correos pendientes, refrescar rápido para reflejar envíos o rechazos de inmediato
     refetchInterval: (query) =>
-      query.state.data?.some((n) => n.status === 'PENDING' || n.status === 'SENDING') ? 5000 : false,
+      query.state.data?.some((n) => n.status === 'PENDING' || n.status === 'SENDING') ? 1500 : false,
   });
 
 export const useEquipmentTypes = () =>
   useQuery({ queryKey: ['equipment-types'], queryFn: catalogApi.equipmentTypes, staleTime: 10 * 60_000 });
+
+export const useEquipmentsBySerial = (serial: string) => {
+  const normalized = serial.trim();
+  return useQuery({
+    queryKey: ['equipments', 'serial', normalized],
+    queryFn: () => catalogApi.findBySerial(normalized),
+    enabled: normalized.length >= 2,
+  });
+};
 
 export const useTechnicians = () => useQuery({ queryKey: ['technicians'], queryFn: catalogApi.technicians, staleTime: 5 * 60_000 });
 
@@ -55,6 +65,14 @@ export const useCreateWorkOrder = () => {
     mutationFn: ({ data, photos }: { data: Parameters<typeof workOrdersApi.create>[0]; photos: File[] }) =>
       workOrdersApi.create(data, photos),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: workOrderKeys.all }),
+  });
+};
+
+export const useUpdateIntake = (id: string) => {
+  const update = useDetailUpdater(id);
+  return useMutation({
+    mutationFn: (data: Parameters<typeof workOrdersApi.updateIntake>[1]) => workOrdersApi.updateIntake(id, data),
+    onSuccess: update,
   });
 };
 

@@ -4,7 +4,12 @@
  * funciones que transforman el formulario al contrato de la API.
  */
 import { z } from 'zod';
-import { EXTRA_SPEC_PREFIX, MAX_EXTRA_SPECS, type CreateWorkOrderRequest } from '../../api/types';
+import {
+  EXTRA_SPEC_PREFIX,
+  MAX_EXTRA_SPECS,
+  type CreateWorkOrderRequest,
+  type UpdateWorkOrderIntakeRequest,
+} from '../../api/types';
 import { toDateInput } from '../../lib/format';
 
 const optionalText = (max: number) => z.string().trim().max(max, `Máximo ${max} caracteres`).optional();
@@ -30,9 +35,8 @@ export const clientSchema = z.object({
   documentId: z
     .string()
     .trim()
-    .regex(/^[A-Za-z0-9-]{5,20}$/, 'Documento inválido (5-20 caracteres)')
-    .or(z.literal(''))
-    .optional(),
+    .min(1, 'Ingrese la cédula o RUC')
+    .regex(/^[A-Za-z0-9-]{5,20}$/, 'Documento inválido (5-20 caracteres)'),
   email: z.string().trim().email('Correo inválido: es necesario para las notificaciones'),
   phone: z
     .string()
@@ -44,6 +48,41 @@ export const clientSchema = z.object({
   registeredAt: registeredAtSchema.optional(),
 });
 export type ClientFormValues = z.infer<typeof clientSchema>;
+
+const equipmentSchema = z.object({
+  equipmentTypeId: z.number({ invalid_type_error: 'Seleccione el tipo de equipo' }).int().positive('Seleccione el tipo de equipo'),
+  brand: z.string().trim().min(1, 'Ingrese la marca').max(60),
+  model: z.string().trim().min(1, 'Ingrese el modelo').max(80),
+  serialNumber: z.string().trim().min(1, 'Ingrese el número de serie').max(80, 'Máximo 80 caracteres'),
+  technicalSpecs: z.record(z.string()),
+  forceNewEquipment: z.boolean().optional(),
+});
+
+const extraSpecsSchema = z
+  .array(
+    z.object({
+      name: z.string().trim().max(40, 'Máximo 40 caracteres'),
+      value: z.string().trim().max(500, 'Máximo 500 caracteres'),
+    }),
+  )
+  .max(MAX_EXTRA_SPECS, `Máximo ${MAX_EXTRA_SPECS} especificaciones adicionales`);
+
+const receptionSchema = z.object({
+  powerStatus: z.enum(['SI', 'NO', 'NO_PROBADO'], { errorMap: () => ({ message: 'Indique si enciende' }) }),
+  physicalCondition: z.enum(['BUENO', 'REGULAR', 'MALO'], { errorMap: () => ({ message: 'Indique el estado físico' }) }),
+  visibleDamage: optionalText(2000),
+  functionalNotes: optionalText(2000),
+});
+
+const validateExtraSpecs = (
+  extraSpecs: Array<{ name: string; value: string }>,
+  ctx: z.RefinementCtx,
+) => {
+  extraSpecs.forEach((extra, index) => {
+    if (extra.name && !extra.value) ctx.addIssue({ code: 'custom', path: ['extraSpecs', index, 'value'], message: 'Indique el valor' });
+    if (extra.value && !extra.name) ctx.addIssue({ code: 'custom', path: ['extraSpecs', index, 'name'], message: 'Indique qué especificación es' });
+  });
+};
 
 export const newWorkOrderSchema = z
   .object({
@@ -59,28 +98,10 @@ export const newWorkOrderSchema = z
         address: z.string().optional(),
       })
       .optional(),
-    equipment: z.object({
-      equipmentTypeId: z.number({ invalid_type_error: 'Seleccione el tipo de equipo' }).int().positive('Seleccione el tipo de equipo'),
-      brand: z.string().trim().min(1, 'Ingrese la marca').max(60),
-      model: z.string().trim().min(1, 'Ingrese el modelo').max(80),
-      serialNumber: optionalText(80),
-      technicalSpecs: z.record(z.string()),
-    }),
-    extraSpecs: z
-      .array(
-        z.object({
-          name: z.string().trim().max(40, 'Máximo 40 caracteres'),
-          value: z.string().trim().max(500, 'Máximo 500 caracteres'),
-        }),
-      )
-      .max(MAX_EXTRA_SPECS, `Máximo ${MAX_EXTRA_SPECS} especificaciones adicionales`),
+    equipment: equipmentSchema,
+    extraSpecs: extraSpecsSchema,
     reportedIssue: z.string().trim().min(3, 'Describa la falla reportada').max(2000),
-    reception: z.object({
-      powerStatus: z.enum(['SI', 'NO', 'NO_PROBADO'], { errorMap: () => ({ message: 'Indique si enciende' }) }),
-      physicalCondition: z.enum(['BUENO', 'REGULAR', 'MALO'], { errorMap: () => ({ message: 'Indique el estado físico' }) }),
-      visibleDamage: optionalText(2000),
-      functionalNotes: optionalText(2000),
-    }),
+    reception: receptionSchema,
     accessories: z
       .array(
         z.object({
@@ -94,10 +115,7 @@ export const newWorkOrderSchema = z
     estimatedDeliveryDate: z.string().optional(),
   })
   .superRefine((values, ctx) => {
-    values.extraSpecs.forEach((extra, index) => {
-      if (extra.name && !extra.value) ctx.addIssue({ code: 'custom', path: ['extraSpecs', index, 'value'], message: 'Indique el valor' });
-      if (extra.value && !extra.name) ctx.addIssue({ code: 'custom', path: ['extraSpecs', index, 'name'], message: 'Indique qué especificación es' });
-    });
+    validateExtraSpecs(values.extraSpecs, ctx);
     if (values.clientMode === 'existing') {
       if (!values.clientId) ctx.addIssue({ code: 'custom', path: ['clientId'], message: 'Seleccione un cliente' });
       return;
@@ -109,19 +127,41 @@ export const newWorkOrderSchema = z
   });
 export type NewWorkOrderFormValues = z.infer<typeof newWorkOrderSchema>;
 
+export const updateIntakeSchema = z
+  .object({
+    client: clientSchema.omit({ registeredAt: true }),
+    equipment: equipmentSchema.omit({ forceNewEquipment: true }),
+    extraSpecs: extraSpecsSchema,
+    reportedIssue: z.string().trim().min(3, 'Describa la falla reportada').max(2000),
+    reception: receptionSchema,
+    estimatedDeliveryDate: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    validateExtraSpecs(values.extraSpecs, ctx);
+  });
+export type UpdateIntakeFormValues = z.infer<typeof updateIntakeSchema>;
+
 const blank = (value?: string) => (value && value.trim() !== '' ? value.trim() : undefined);
 
-export const toCreateWorkOrderRequest = (values: NewWorkOrderFormValues): CreateWorkOrderRequest => {
-  const receivedAt = new Date(values.receivedAt);
+const buildSpecsRecord = (
+  technicalSpecs: Record<string, string> | undefined,
+  extraSpecs: Array<{ name: string; value: string }>,
+): Record<string, string> => {
   const specs: Record<string, string> = Object.fromEntries(
-    Object.entries(values.equipment.technicalSpecs ?? {})
+    Object.entries(technicalSpecs ?? {})
       .filter(([, v]) => v && String(v).trim() !== '')
       .map(([k, v]) => [k, String(v).trim()]),
   );
   // Especificaciones adicionales libres: viajan en el mismo objeto con prefijo.
-  values.extraSpecs.forEach(({ name, value }) => {
+  extraSpecs.forEach(({ name, value }) => {
     if (name.trim() && value.trim()) specs[`${EXTRA_SPEC_PREFIX}${name.trim()}`] = value.trim();
   });
+  return specs;
+};
+
+export const toCreateWorkOrderRequest = (values: NewWorkOrderFormValues): CreateWorkOrderRequest => {
+  const receivedAt = new Date(values.receivedAt);
+  const specs = buildSpecsRecord(values.equipment.technicalSpecs, values.extraSpecs);
   return {
     ...(values.clientMode === 'existing'
       ? { clientId: values.clientId }
@@ -129,7 +169,7 @@ export const toCreateWorkOrderRequest = (values: NewWorkOrderFormValues): Create
           client: {
             fullName: values.client!.fullName!.trim(),
             email: values.client!.email!.trim(),
-            documentId: blank(values.client?.documentId),
+            documentId: values.client!.documentId!.trim(),
             phone: blank(values.client?.phone),
             address: blank(values.client?.address),
             // El cliente nuevo ingresa el mismo día que su equipo.
@@ -140,8 +180,9 @@ export const toCreateWorkOrderRequest = (values: NewWorkOrderFormValues): Create
       equipmentTypeId: values.equipment.equipmentTypeId,
       brand: values.equipment.brand.trim(),
       model: values.equipment.model.trim(),
-      serialNumber: blank(values.equipment.serialNumber),
+      serialNumber: values.equipment.serialNumber.trim(),
       technicalSpecs: specs,
+      ...(values.equipment.forceNewEquipment ? { forceNewEquipment: true } : {}),
     },
     reportedIssue: values.reportedIssue.trim(),
     reception: {
@@ -157,8 +198,46 @@ export const toCreateWorkOrderRequest = (values: NewWorkOrderFormValues): Create
   };
 };
 
+export const toUpdateIntakeRequest = (values: UpdateIntakeFormValues): UpdateWorkOrderIntakeRequest => ({
+  client: {
+    fullName: values.client.fullName.trim(),
+    documentId: values.client.documentId.trim(),
+    email: values.client.email.trim(),
+    phone: blank(values.client.phone) ?? null,
+    address: blank(values.client.address) ?? null,
+  },
+  equipment: {
+    equipmentTypeId: values.equipment.equipmentTypeId,
+    brand: values.equipment.brand.trim(),
+    model: values.equipment.model.trim(),
+    serialNumber: values.equipment.serialNumber.trim(),
+    technicalSpecs: buildSpecsRecord(values.equipment.technicalSpecs, values.extraSpecs),
+  },
+  reportedIssue: values.reportedIssue.trim(),
+  reception: {
+    powerStatus: values.reception.powerStatus,
+    physicalCondition: values.reception.physicalCondition,
+    visibleDamage: blank(values.reception.visibleDamage),
+    functionalNotes: blank(values.reception.functionalNotes),
+  },
+  estimatedDeliveryDate: blank(values.estimatedDeliveryDate) ?? null,
+});
+
+export const parseAmountInput = (value: unknown): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : Number.NaN;
+  const raw = String(value ?? '').trim().replace(',', '.');
+  if (!raw || !/^-?\d+(?:\.\d{1,2})?$/.test(raw)) return Number.NaN;
+  return Number(raw);
+};
+
+const amountFieldSchema = z
+  .number({ invalid_type_error: 'Ingrese un valor válido (solo números, ej.: 45.50)' })
+  .finite('Ingrese un valor válido (solo números, ej.: 45.50)')
+  .min(0, 'El valor no puede ser negativo. Ingrese un valor válido')
+  .max(99_999_999.99, 'El valor supera el límite permitido');
+
 export const quotationSchema = z.object({
-  amount: z.number({ invalid_type_error: 'Ingrese el valor' }).min(0, 'No puede ser negativo').max(99_999_999.99),
+  amount: amountFieldSchema,
   description: z.string().trim().min(3, 'Detalle la cotización').max(4000),
   estimatedDays: z.number().int('Días enteros').min(1).max(365).optional(),
 });
@@ -174,13 +253,13 @@ export const technicalLogSchema = z
   })
   .refine((v) => Object.values(v).some((x) => x && x.trim() !== ''), {
     message: 'Complete al menos un campo',
-    path: ['diagnosis'],
+    path: ['observations'],
   });
 export type TechnicalLogFormValues = z.infer<typeof technicalLogSchema>;
 
 export const deliverySchema = z.object({
   workSummary: z.string().trim().min(3, 'Describa el trabajo realizado').max(4000),
-  amountCharged: z.number({ invalid_type_error: 'Ingrese el valor cobrado' }).min(0).max(99_999_999.99),
+  amountCharged: amountFieldSchema,
   returnCondition: z.string().trim().min(3, 'Describa las condiciones de entrega').max(4000),
   accessoriesNotes: optionalText(500),
   receivedByName: z.string().trim().min(3, 'Nombre de quien retira').max(150),

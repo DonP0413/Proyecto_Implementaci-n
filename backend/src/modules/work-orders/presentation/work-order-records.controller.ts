@@ -41,7 +41,7 @@ export class WorkOrderRecordsController {
   ) {}
 
   @Post('technical-logs')
-  @Roles(UserRole.TECNICO)
+  @Roles(UserRole.TECNICO, UserRole.RECEPCIONISTA)
   @UseInterceptors(FilesInterceptor('documents'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Agregar registro técnico INTERNO (no visible para el cliente)' })

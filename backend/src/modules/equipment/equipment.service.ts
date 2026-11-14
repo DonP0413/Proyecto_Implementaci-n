@@ -103,13 +103,21 @@ export class EquipmentService {
     const specs = this.normalizeSpecs(type, input.technicalSpecs);
     const serial = input.serialNumber ?? null;
 
-    let equipment = serial
-      ? await this.equipment.findMatching({ clientId, serialNumber: serial, brand: input.brand }, manager)
-      : null;
+    let equipment =
+      serial && !input.forceNewEquipment
+        ? await this.equipment.findMatching(
+            {
+              clientId,
+              equipmentTypeId: type.id,
+              serialNumber: serial,
+              brand: input.brand,
+              model: input.model,
+            },
+            manager,
+          )
+        : null;
 
     if (equipment) {
-      equipment.model = input.model;
-      equipment.equipmentTypeId = type.id;
       equipment.technicalSpecs = { ...equipment.technicalSpecs, ...specs };
     } else {
       equipment = this.equipment.create(
@@ -127,5 +135,29 @@ export class EquipmentService {
     const saved = await this.equipment.save(equipment, manager);
     saved.equipmentType = type;
     return { equipment: saved, type };
+  }
+
+  async updateForIntake(
+    equipmentId: string,
+    input: EquipmentInputDto,
+    manager: EntityManager,
+  ): Promise<{ equipment: EquipmentEntity; type: EquipmentTypeEntity; specs: Record<string, string> }> {
+    const existing = await this.equipment.findById(equipmentId, manager);
+    if (!existing) throw new NotFoundError('Equipo', equipmentId);
+
+    const type = await this.equipment.findTypeById(input.equipmentTypeId, manager);
+    if (!type || !type.isActive) throw new NotFoundError('Tipo de equipo', String(input.equipmentTypeId));
+
+    const specs = this.normalizeSpecs(type, input.technicalSpecs);
+    existing.equipmentTypeId = type.id;
+    existing.equipmentType = type;
+    existing.brand = input.brand;
+    existing.model = input.model;
+    existing.serialNumber = input.serialNumber;
+    existing.technicalSpecs = specs;
+
+    const saved = await this.equipment.save(existing, manager);
+    saved.equipmentType = type;
+    return { equipment: saved, type, specs };
   }
 }

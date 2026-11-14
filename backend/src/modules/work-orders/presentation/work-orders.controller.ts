@@ -32,6 +32,7 @@ import {
   CreateQuotationDto,
   CreateWorkOrderDto,
   RegisterDeliveryDto,
+  UpdateWorkOrderIntakeDto,
   WorkOrderQueryDto,
 } from '../application/dto/work-order-input.dto';
 import type {
@@ -100,6 +101,21 @@ export class WorkOrdersController {
 
   @Get(':id')
   detail(@Param('id', ParseUUIDPipe) id: string): Promise<WorkOrderDetailDto> {
+    return this.queries.detail(id);
+  }
+
+  @Patch(':id/intake')
+  @Roles(UserRole.RECEPCIONISTA, UserRole.TECNICO)
+  @ApiOperation({
+    summary:
+      'Corregir datos del ingreso mientras la orden está en estado "Ingresado" (registra quién corrigió y cuándo)',
+  })
+  async updateIntake(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateWorkOrderIntakeDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<WorkOrderDetailDto> {
+    await this.commands.updateIntake(id, dto, user);
     return this.queries.detail(id);
   }
 

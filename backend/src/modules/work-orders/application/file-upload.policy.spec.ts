@@ -41,6 +41,15 @@ describe('FileUploadPolicy', () => {
     ).toThrow('no corresponde');
   });
 
+  it('rechaza archivos que superan el peso máximo permitido', () => {
+    expect(() =>
+      FileUploadPolicy.validate(
+        { originalname: 'pesada.jpg', mimetype: 'image/jpeg', size: 9 * 1024 * 1024, buffer: jpeg },
+        AttachmentCategory.RECEPTION_PHOTO,
+      ),
+    ).toThrow('peso máximo');
+  });
+
   it('sanea nombres de archivo', () => {
     expect(sanitizeFileName('../../etc/passwd')).not.toContain('/');
   });

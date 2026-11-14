@@ -27,6 +27,9 @@ describe('WorkOrderCommandService', () => {
     nextSequence: jest.fn().mockResolvedValue(7),
     saveWorkOrder: jest.fn((data) => Promise.resolve({ id: 'wo1', ...data })),
     saveReception: jest.fn(),
+    updateReception: jest.fn(),
+    deleteAttachmentsByCategory: jest.fn(),
+    findAttachmentsByCategory: jest.fn().mockResolvedValue([]),
     saveAccessories: jest.fn(),
     addStatusHistory: jest.fn(),
     findForClientDocuments: jest.fn().mockResolvedValue({ id: 'wo1', code: 'PT-2026-000007' }),
@@ -36,11 +39,17 @@ describe('WorkOrderCommandService', () => {
   };
   const clients = {
     resolveForWorkOrder: jest.fn().mockResolvedValue({ id: 'c1', email: 'cliente@example.com' }),
+    updateForIntake: jest.fn().mockResolvedValue({ id: 'c1', email: 'corregido@example.com' }),
   };
   const equipment = {
     resolveForWorkOrder: jest
       .fn()
       .mockResolvedValue({ equipment: { id: 'e1', technicalSpecs: { ram: '8 GB' } } }),
+    updateForIntake: jest.fn().mockResolvedValue({
+      equipment: { id: 'e1', serialNumber: 'SN-CORREGIDO' },
+      type: { id: 1, name: 'Laptop' },
+      specs: { ram: '8 GB' },
+    }),
   };
   const attachments = {
     validateAll: jest.fn().mockReturnValue([]),
@@ -55,7 +64,11 @@ describe('WorkOrderCommandService', () => {
       payload: { data: {}, attachments: [] },
     }),
   };
-  const notifications = { enqueue: jest.fn(), signalEnqueued: jest.fn() };
+  const notifications = {
+    enqueue: jest.fn(),
+    signalEnqueued: jest.fn(),
+    syncRecipientForClient: jest.fn(),
+  };
   const config = { get: jest.fn((key: string) => (key === 'workOrders.codePrefix' ? 'PT' : undefined)) };
 
   const service = new WorkOrderCommandService(
@@ -73,7 +86,7 @@ describe('WorkOrderCommandService', () => {
   );
 
   const dto = Object.assign(new CreateWorkOrderDto(), {
-    client: { fullName: 'María', email: 'cliente@example.com' },
+    client: { fullName: 'María', documentId: '1718123456', email: 'cliente@example.com' },
     equipment: { equipmentTypeId: 1, brand: 'HP', model: 'Pavilion', serialNumber: 'SN1' },
     reportedIssue: 'No enciende',
     reception: { powerStatus: PowerStatus.NO, physicalCondition: PhysicalCondition.BUENO },
@@ -143,10 +156,18 @@ describe('WorkOrderCommandService', () => {
     expect(notifications.signalEnqueued).not.toHaveBeenCalled();
   });
 
-  it('no permite marcar ENTREGADO con el cambio de estado genérico', async () => {
+  it('no permite marcar ENTREGADO con el cambio de estado genérico desde LISTO_PARA_RETIRAR', async () => {
+    workOrders.lockById.mockResolvedValue({ id: 'wo1', status: WorkOrderStatus.LISTO_PARA_RETIRAR });
     await expect(
       service.changeStatus('wo1', { status: WorkOrderStatus.ENTREGADO }, actor),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
+    ).rejects.toThrow('registre la entrega');
+  });
+
+  it('no permite pasar directo de INGRESADO a ENTREGADO y muestra el siguiente estado permitido', async () => {
+    workOrders.lockById.mockResolvedValue({ id: 'wo1', status: WorkOrderStatus.INGRESADO });
+    await expect(
+      service.changeStatus('wo1', { status: WorkOrderStatus.ENTREGADO }, actor),
+    ).rejects.toThrow('Siguiente estado permitido: "En revisión"');
   });
 
   it('valida la transición con la máquina de estados', async () => {
@@ -177,6 +198,98 @@ describe('WorkOrderCommandService', () => {
     workOrders.lockById.mockResolvedValue({ id: 'wo1', status: WorkOrderStatus.INGRESADO });
     await expect(
       service.createQuotation('wo1', { amount: 10, description: 'x' }, actor),
+    ).rejects.toBeInstanceOf(BusinessRuleError);
+  });
+
+  it('permite corregir datos del ingreso mientras está en estado INGRESADO y registra quién lo hizo', async () => {
+    workOrders.lockById.mockResolvedValue({
+      id: 'wo1',
+      code: 'PT-2026-000007',
+      status: WorkOrderStatus.INGRESADO,
+    });
+    workOrders.findForClientDocuments.mockResolvedValue({
+      id: 'wo1',
+      code: 'PT-2026-000007',
+      status: WorkOrderStatus.INGRESADO,
+      reportedIssue: 'No enciende',
+      specsSnapshot: { ram: '8 GB' },
+      estimatedDeliveryDate: null,
+      client: {
+        id: 'c1',
+        fullName: 'María',
+        documentId: '1718123456',
+        email: 'mal@example.com',
+        phone: null,
+        address: null,
+      },
+      equipment: {
+        id: 'e1',
+        equipmentTypeId: 1,
+        equipmentType: { id: 1, name: 'Laptop' },
+        brand: 'HP',
+        model: 'Pavilion',
+        serialNumber: 'SN-MAL',
+      },
+      receptionCondition: {
+        powerStatus: PowerStatus.NO,
+        physicalCondition: PhysicalCondition.BUENO,
+        visibleDamage: null,
+        functionalNotes: null,
+      },
+    });
+
+    await service.updateIntake(
+      'wo1',
+      {
+        client: { fullName: 'María', documentId: '1718123456', email: 'corregido@example.com' },
+        equipment: {
+          equipmentTypeId: 1,
+          brand: 'HP',
+          model: 'Pavilion',
+          serialNumber: 'SN-CORREGIDO',
+          technicalSpecs: { ram: '8 GB' },
+        },
+        reportedIssue: 'No enciende',
+        reception: { powerStatus: PowerStatus.NO, physicalCondition: PhysicalCondition.BUENO },
+      },
+      actor,
+    );
+
+    expect(clients.updateForIntake).toHaveBeenCalledWith(
+      'c1',
+      expect.objectContaining({ email: 'corregido@example.com' }),
+      manager,
+    );
+    expect(equipment.updateForIntake).toHaveBeenCalledWith(
+      'e1',
+      expect.objectContaining({ serialNumber: 'SN-CORREGIDO' }),
+      manager,
+    );
+    expect(workOrders.addStatusHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workOrderId: 'wo1',
+        fromStatus: WorkOrderStatus.INGRESADO,
+        toStatus: WorkOrderStatus.INGRESADO,
+        changedById: actor.id,
+        note: expect.stringContaining('Corrección de ingreso:'),
+      }),
+      manager,
+    );
+  });
+
+  it('no permite corregir datos del ingreso si la orden ya no está en estado INGRESADO', async () => {
+    workOrders.lockById.mockResolvedValue({ id: 'wo1', status: WorkOrderStatus.EN_REVISION });
+    await expect(
+      service.updateIntake(
+        'wo1',
+        {
+          client: { fullName: 'María', documentId: '1718123456', email: 'corregido@example.com' },
+          equipment: { equipmentTypeId: 1, brand: 'HP', model: 'Pavilion', serialNumber: 'SN-CORREGIDO' },
+          reportedIssue: 'No enciende',
+          reception: { powerStatus: PowerStatus.NO, physicalCondition: PhysicalCondition.BUENO },
+        },
+        actor,
+      ),
     ).rejects.toBeInstanceOf(BusinessRuleError);
   });
 });

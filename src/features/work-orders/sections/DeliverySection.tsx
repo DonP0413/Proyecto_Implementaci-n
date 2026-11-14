@@ -27,8 +27,9 @@ import { toast } from '../../../stores/toastStore';
 import { ClientForm } from '../../clients/ClientForm';
 import { AttachmentGallery } from '../components/AttachmentGallery';
 import { FilePicker } from '../components/FilePicker';
+import { MAX_FILE_MB, STATUS_LABELS } from '../constants';
 import { useRegisterDelivery, workOrderKeys } from '../hooks';
-import { deliverySchema, type DeliveryFormValues } from '../schemas';
+import { deliverySchema, parseAmountInput, type DeliveryFormValues } from '../schemas';
 
 type Step = 'edit' | 'review';
 
@@ -111,7 +112,17 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
   }
 
   if (!wo.actions.canRegisterDelivery) {
-    return <Alert kind="info">La entrega se registra cuando la orden está en "Listo para retirar".</Alert>;
+    const nextAllowed =
+      wo.allowedTransitions && wo.allowedTransitions.length > 0
+        ? wo.allowedTransitions.map((t) => `"${t.label}"`).join(' o ')
+        : 'completar las etapas previas hasta "Listo para retirar"';
+    return (
+      <Alert kind="warning">
+        No se puede pasar un trabajo en estado <strong>"{STATUS_LABELS[wo.status] ?? wo.status}"</strong> directamente a{' '}
+        <strong>"Entregado"</strong>. Siguiente estado permitido: <strong>{nextAllowed}</strong> (la entrega sólo se registra cuando la orden
+        está en "Listo para retirar").
+      </Alert>
+    );
   }
   if (!canDeliver) return <p className="muted">Su rol no puede registrar entregas.</p>;
 
@@ -150,14 +161,13 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
             />
             <Input
               label="Valor cobrado (USD)"
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
               required
               placeholder="Ej.: 45.50"
               hint={latestQuote ? `Cotización vigente: ${formatMoney(latestQuote.amount)}` : undefined}
               error={errors.amountCharged?.message}
-              {...register('amountCharged', { valueAsNumber: true })}
+              {...register('amountCharged', { setValueAs: parseAmountInput })}
             />
             <Input label="Nombre de quien retira" required placeholder="Ej.: María Fernanda Pérez" error={errors.receivedByName?.message} {...register('receivedByName')} />
             <Input label="Documento de quien retira" placeholder="Ej.: 1718123456" error={errors.receivedByDocument?.message} {...register('receivedByDocument')} />
@@ -172,7 +182,15 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
               ))}
             </fieldset>
             <div className="span-2">
-              <FilePicker label="Fotografía del equipo al entregar" files={photo} onChange={setPhoto} accept="image/jpeg,image/png,image/webp" maxFiles={1} imagesOnly />
+              <FilePicker
+                label="Fotografía del equipo al entregar (opcional)"
+                files={photo}
+                onChange={setPhoto}
+                accept="image/jpeg,image/png,image/webp"
+                maxFiles={1}
+                imagesOnly
+                hint={`Opcional · Solo archivos de fotografía (JPG, PNG o WEBP) · Peso máximo ${MAX_FILE_MB} MB.`}
+              />
             </div>
             <div className="span-2 form-actions">
               <Button type="submit">Revisar entrega →</Button>

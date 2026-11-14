@@ -75,8 +75,24 @@ describe('DeliverySection — editar, revisar y confirmar', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Editar datos de la entrega/ }));
 
     expect(screen.getByLabelText(/Descripción del trabajo realizado/)).toHaveValue('Cambio de pantalla');
-    expect(screen.getByLabelText(/Valor cobrado/)).toHaveValue(60);
+    expect(screen.getByLabelText(/Valor cobrado/)).toHaveValue('60');
     expect(screen.getByLabelText(/Funda/)).not.toBeChecked();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('rechaza valores negativos o con letras en Valor cobrado y pide un valor válido (CA-032)', async () => {
+    renderSection();
+    fireEvent.change(screen.getByLabelText(/Descripción del trabajo realizado/), { target: { value: 'Cambio de pantalla' } });
+    fireEvent.change(screen.getByLabelText(/Condiciones en que se devuelve/), { target: { value: 'Funcional y limpio' } });
+
+    fireEvent.change(screen.getByLabelText(/Valor cobrado/), { target: { value: 'abc' } });
+    fireEvent.click(screen.getByRole('button', { name: /Revisar entrega/ }));
+    expect(await screen.findByText(/valor válido/i)).toBeInTheDocument();
+    expect(screen.queryByText('Revise la entrega antes de finalizar')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Valor cobrado/), { target: { value: '-15' } });
+    fireEvent.click(screen.getByRole('button', { name: /Revisar entrega/ }));
+    expect(await screen.findByText(/no puede ser negativo/i)).toBeInTheDocument();
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 

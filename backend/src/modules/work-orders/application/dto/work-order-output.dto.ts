@@ -36,8 +36,22 @@ export interface WorkOrderSummaryDto {
   receivedAt: string;
   estimatedDeliveryDate: string | null;
   deliveredAt: string | null;
-  client: { id: string; fullName: string; email: string; phone: string | null; documentId: string | null };
-  equipment: { id: string; typeName: string; brand: string; model: string; serialNumber: string | null };
+  client: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string | null;
+    documentId: string | null;
+    address: string | null;
+  };
+  equipment: {
+    id: string;
+    equipmentTypeId: number;
+    typeName: string;
+    brand: string;
+    model: string;
+    serialNumber: string | null;
+  };
   assignedTechnician: PersonRef | null;
 }
 
@@ -76,6 +90,7 @@ export interface WorkOrderDetailDto extends WorkOrderSummaryDto {
   receivedBy: PersonRef | null;
   allowedTransitions: Array<{ status: WorkOrderStatus; label: string }>;
   actions: {
+    canEditIntake: boolean;
     canCreateQuotation: boolean;
     canSendQuotation: boolean;
     canNotifyReadyForPickup: boolean;
@@ -84,6 +99,7 @@ export interface WorkOrderDetailDto extends WorkOrderSummaryDto {
   clientVisible: {
     reportedIssue: string;
     specs: Array<{ key: string; label: string; value: string }>;
+    rawSpecs: Record<string, string>;
     reception: {
       powerStatus: PowerStatus;
       powerStatusLabel: string;

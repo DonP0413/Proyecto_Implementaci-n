@@ -20,9 +20,19 @@ export function WorkOrdersListPage() {
     page: 1,
     limit: 20,
     clientId: params.get('clientId') ?? undefined,
+    equipmentId: params.get('equipmentId') ?? undefined,
     status: (params.get('status')?.split(',').filter(Boolean) as WorkOrderStatus[] | undefined) ?? undefined,
   });
   const { data, isLoading, isError, error, isFetching } = useWorkOrders(filters);
+
+  const serialEquipmentIds = new Map<string, Set<string>>();
+  for (const wo of data?.items ?? []) {
+    const key = wo.equipment.serialNumber?.trim().toLowerCase();
+    if (!key) continue;
+    const ids = serialEquipmentIds.get(key) ?? new Set<string>();
+    ids.add(wo.equipment.id);
+    serialEquipmentIds.set(key, ids);
+  }
 
   return (
     <div className="page">
@@ -36,11 +46,40 @@ export function WorkOrdersListPage() {
       </div>
 
       <Card>
-        <WorkOrderFilters value={filters} onChange={(f) => setFilters({ ...f, limit: 20, clientId: filters.clientId })} />
+        <WorkOrderFilters
+          value={filters}
+          onChange={(f) =>
+            setFilters({
+              ...f,
+              limit: 20,
+              clientId: 'clientId' in f ? f.clientId : filters.clientId,
+              equipmentId: 'equipmentId' in f ? f.equipmentId : filters.equipmentId,
+            })
+          }
+        />
+        {filters.serial && data && (
+          <Alert kind="info">
+            Búsqueda por número de serie <code>{filters.serial}</code>: {data.meta.total} trabajo(s) encontrado(s).
+          </Alert>
+        )}
+        {(filters.dateFrom || filters.dateTo) && data && (
+          <Alert kind="info">
+            Mostrando ingresos{filters.dateFrom ? ` desde ${filters.dateFrom}` : ''}
+            {filters.dateTo ? ` hasta ${filters.dateTo}` : ''} (ambos días incluidos): {data.meta.total} trabajo(s).
+          </Alert>
+        )}
         {filters.clientId && (
           <Alert kind="info">
             Mostrando el historial de un cliente.{' '}
             <Button size="sm" variant="ghost" onClick={() => setFilters({ ...filters, clientId: undefined, page: 1 })}>
+              Quitar filtro
+            </Button>
+          </Alert>
+        )}
+        {filters.equipmentId && (
+          <Alert kind="info">
+            Mostrando el historial de un equipo físico específico (sin mezclar otros equipos que compartan número de serie).{' '}
+            <Button size="sm" variant="ghost" onClick={() => setFilters({ ...filters, equipmentId: undefined, page: 1 })}>
               Quitar filtro
             </Button>
           </Alert>
@@ -87,7 +126,25 @@ export function WorkOrdersListPage() {
                           {wo.equipment.brand} {wo.equipment.model}
                         </div>
                       </td>
-                      <td>{wo.equipment.serialNumber ?? '—'}</td>
+                      <td>
+                        <div>{wo.equipment.serialNumber ?? '—'}</div>
+                        {wo.equipment.serialNumber && !filters.equipmentId && (
+                          <button
+                            type="button"
+                            className="link-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFilters({ ...filters, equipmentId: wo.equipment.id, page: 1 });
+                            }}
+                          >
+                            <small>
+                              {(serialEquipmentIds.get(wo.equipment.serialNumber.trim().toLowerCase())?.size ?? 0) > 1
+                                ? 'Serie repetida · Solo este equipo'
+                                : 'Solo este equipo'}
+                            </small>
+                          </button>
+                        )}
+                      </td>
                       <td>{formatDateTime(wo.receivedAt)}</td>
                       <td>{wo.assignedTechnician?.fullName ?? <span className="muted">Sin asignar</span>}</td>
                       <td>

@@ -9,11 +9,14 @@ import type {
   Client,
   ClientInput,
   CreateWorkOrderRequest,
+  EquipmentMatch,
   EquipmentType,
   LoginResponse,
   NotificationItem,
+  NotificationPreview,
   Paginated,
   TechnicalLog,
+  UpdateWorkOrderIntakeRequest,
   User,
   UserRole,
   WorkOrderCreated,
@@ -47,6 +50,8 @@ export const workOrdersApi = {
   detail: (id: string) => http.get<WorkOrderDetail>(`/work-orders/${id}`).then((r) => r.data),
   create: (data: CreateWorkOrderRequest, photos: File[]) =>
     http.post<WorkOrderCreated>('/work-orders', toMultipart(data, { photos })).then((r) => r.data),
+  updateIntake: (id: string, data: UpdateWorkOrderIntakeRequest) =>
+    http.patch<WorkOrderDetail>(`/work-orders/${id}/intake`, data).then((r) => r.data),
   changeStatus: (id: string, status: WorkOrderStatus, note?: string) =>
     http.patch<WorkOrderDetail>(`/work-orders/${id}/status`, { status, note }).then((r) => r.data),
   assignTechnician: (id: string, technicianId: string | null) =>
@@ -87,7 +92,9 @@ export const workOrdersApi = {
 export const notificationsApi = {
   list: (status: 'FAILED' | 'PENDING' | 'SENT' = 'FAILED') =>
     http.get<NotificationItem[]>('/notifications', { params: { status } }).then((r) => r.data),
-  retry: (id: string) => http.post<NotificationItem>(`/notifications/${id}/retry`).then((r) => r.data),
+  preview: (id: string) => http.get<NotificationPreview>(`/notifications/${id}/preview`).then((r) => r.data),
+  retry: (id: string, recipientEmail?: string) =>
+    http.post<NotificationItem>(`/notifications/${id}/retry`, recipientEmail ? { recipientEmail } : {}).then((r) => r.data),
 };
 
 export const clientsApi = {
@@ -100,6 +107,7 @@ export const clientsApi = {
 
 export const catalogApi = {
   equipmentTypes: () => http.get<EquipmentType[]>('/equipment-types').then((r) => r.data),
+  findBySerial: (serial: string) => http.get<EquipmentMatch[]>('/equipments', { params: { serial } }).then((r) => r.data),
   technicians: () => http.get<User[]>('/users/technicians').then((r) => r.data),
 };
 

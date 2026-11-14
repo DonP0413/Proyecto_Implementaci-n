@@ -1,30 +1,22 @@
-/** Objetivo: bandeja de correos fallidos (soporte operativo) con reintento manual. */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+/** Objetivo: bandeja de correos fallidos (soporte operativo) con vista previa y reintento manual. */
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { notificationsApi } from '../../api/endpoints';
+import type { NotificationItem } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { Alert, Card, EmptyState, Spinner } from '../../components/ui/Feedback';
-import { ConfirmDialog } from '../../components/ui/Modal';
 import { getErrorMessage } from '../../lib/errors';
 import { formatDateTime } from '../../lib/format';
-import { toast } from '../../stores/toastStore';
+import { NotificationPreviewModal, NotificationRetryModal } from './NotificationModals';
 
 export function FailedNotificationsPage() {
-  const queryClient = useQueryClient();
-  const { data, isLoading, isError, error } = useQuery({ queryKey: ['notifications', 'FAILED'], queryFn: () => notificationsApi.list('FAILED') });
-  const retry = useMutation({
-    mutationFn: notificationsApi.retry,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['notifications', 'FAILED'],
+    queryFn: () => notificationsApi.list('FAILED'),
   });
-  const [toRetry, setToRetry] = useState<{ id: string; recipientEmail: string; typeLabel: string } | null>(null);
-  const confirmRetry = () =>
-    toRetry &&
-    retry
-      .mutateAsync(toRetry.id)
-      .then(() => toast.success('Reintento programado'))
-      .catch((e) => toast.error(getErrorMessage(e)))
-      .finally(() => setToRetry(null));
+  const [toRetry, setToRetry] = useState<NotificationItem | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   return (
     <div className="page">
@@ -32,8 +24,8 @@ export function FailedNotificationsPage() {
         <h1>Correos fallidos</h1>
       </div>
       <Alert kind="info">
-        Un correo se marca como fallido cuando Mailgun lo rechaza (p. ej. dirección inválida) o tras agotar los reintentos automáticos. Corrija el
-        correo del cliente si es necesario y reintente.
+        Un correo se marca como fallido cuando el servidor de correo lo rechaza (p. ej. dirección inexistente o no autorizada) o tras agotar los
+        reintentos automáticos. La orden igualmente se guarda; puede corregir el destinatario al reintentar.
       </Alert>
       <Card>
         {isLoading ? (
@@ -47,6 +39,7 @@ export function FailedNotificationsPage() {
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Orden</th>
                 <th>Tipo</th>
                 <th>Destinatario</th>
                 <th>Error</th>
@@ -58,18 +51,22 @@ export function FailedNotificationsPage() {
                 <tr key={n.id}>
                   <td>{formatDateTime(n.createdAt)}</td>
                   <td>
-                    <Link to={`/work-orders/${n.workOrderId}`}>{n.typeLabel}</Link>
+                    <Link to={`/work-orders/${n.workOrderId}`} className="mono">
+                      {n.workOrderCode ?? 'Ver orden'}
+                    </Link>
                   </td>
+                  <td>{n.typeLabel}</td>
                   <td>{n.recipientEmail}</td>
                   <td className="error-text small">{n.lastError}</td>
                   <td>
-                    <Button
-                      size="sm"
-                      loading={retry.isPending && retry.variables === n.id}
-                      onClick={() => setToRetry(n)}
-                    >
-                      Reintentar
-                    </Button>
+                    <div className="button-row">
+                      <Button size="sm" variant="secondary" onClick={() => setPreviewId(n.id)}>
+                        Ver correo
+                      </Button>
+                      <Button size="sm" onClick={() => setToRetry(n)}>
+                        Reintentar
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -77,20 +74,8 @@ export function FailedNotificationsPage() {
           </table>
         )}
       </Card>
-      <ConfirmDialog
-        open={!!toRetry}
-        title="¿Está seguro de reintentar el envío?"
-        confirmLabel="Sí, reintentar"
-        loading={retry.isPending}
-        onCancel={() => setToRetry(null)}
-        onConfirm={confirmRetry}
-        message={
-          <p>
-            Se volverá a enviar el correo <strong>{toRetry?.typeLabel}</strong> a <strong>{toRetry?.recipientEmail}</strong>. Si la dirección es
-            incorrecta, corríjala primero en la ficha del cliente.
-          </p>
-        }
-      />
+      <NotificationPreviewModal notificationId={previewId} onClose={() => setPreviewId(null)} />
+      <NotificationRetryModal notification={toRetry} onClose={() => setToRetry(null)} />
     </div>
   );
 }

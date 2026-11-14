@@ -21,16 +21,30 @@ export class EquipmentRepository {
     return repo.findOne({ where: { id } });
   }
 
+  findById(id: string, manager: EntityManager): Promise<EquipmentEntity | null> {
+    return manager.getRepository(EquipmentEntity).findOne({
+      where: { id },
+      relations: { equipmentType: true },
+    });
+  }
+
   findMatching(
-    params: { clientId: string; serialNumber: string; brand: string },
+    params: {
+      clientId: string;
+      equipmentTypeId: number;
+      serialNumber: string;
+      brand?: string;
+      model?: string;
+    },
     manager: EntityManager,
   ): Promise<EquipmentEntity | null> {
     return manager
       .getRepository(EquipmentEntity)
       .createQueryBuilder('e')
       .where('e.clientId = :clientId', { clientId: params.clientId })
+      .andWhere('e.equipmentTypeId = :equipmentTypeId', { equipmentTypeId: params.equipmentTypeId })
       .andWhere('lower(e.serialNumber) = lower(:serial)', { serial: params.serialNumber })
-      .andWhere('lower(e.brand) = lower(:brand)', { brand: params.brand })
+      .orderBy('e.createdAt', 'DESC')
       .getOne();
   }
 
@@ -46,6 +60,7 @@ export class EquipmentRepository {
     return this.equipments
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.equipmentType', 't')
+      .leftJoinAndSelect('e.client', 'c')
       .where('lower(e.serialNumber) = lower(:serial)', { serial })
       .orderBy('e.createdAt', 'DESC')
       .getMany();

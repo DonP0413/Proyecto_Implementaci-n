@@ -70,10 +70,13 @@ export class WorkOrderStateMachine {
 
   static assertTransition(from: WorkOrderStatus, to: WorkOrderStatus): void {
     if (!WorkOrderStateMachine.canTransition(from, to)) {
+      const allowed = TRANSITIONS[from];
+      const allowedLabels = allowed.map((s) => `"${WORK_ORDER_STATUS_LABELS[s]}"`).join(', ');
+      const suffix = allowedLabels ? ` Siguiente estado permitido: ${allowedLabels}.` : '';
       throw new BusinessRuleError(
-        `No se puede pasar de "${WORK_ORDER_STATUS_LABELS[from]}" a "${WORK_ORDER_STATUS_LABELS[to]}"`,
+        `No se puede pasar de "${WORK_ORDER_STATUS_LABELS[from]}" a "${WORK_ORDER_STATUS_LABELS[to]}".${suffix}`,
         'INVALID_STATUS_TRANSITION',
-        { from, to, allowed: TRANSITIONS[from] },
+        { from, to, allowed },
       );
     }
   }
