@@ -99,7 +99,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: .
+      dockerfile: Dockerfile
       args:
         VITE_API_URL: /api/v1
         APP_VERSION: ${APP_VERSION:-dev}

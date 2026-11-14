@@ -4,12 +4,13 @@
  * datos y existe un cliente con el mismo documento, se reutiliza y se
  * actualizan sus datos de contacto; si no, se crea uno nuevo.
  */
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EntityManager } from 'typeorm';
 import { InvalidInputError, ConflictError, NotFoundError } from '../../common/errors/domain.errors';
 import { paginate, Paginated } from '../../common/pagination/pagination';
 import { todayLocalDate } from '../../common/time/local-date';
+import { NotificationsService } from '../notifications/application/notifications.service';
 import { ClientEntity } from './client.entity';
 import { ClientsRepository } from './clients.repository';
 import { ClientQueryDto, ClientResponseDto, CreateClientDto, UpdateClientDto } from './dto/client.dto';
@@ -19,6 +20,7 @@ export class ClientsService {
   constructor(
     private readonly clients: ClientsRepository,
     private readonly config: ConfigService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async search(query: ClientQueryDto): Promise<Paginated<ClientResponseDto>> {
@@ -46,8 +48,13 @@ export class ClientsService {
         throw new ConflictError('Ya existe un cliente con ese documento', 'CLIENT_DOCUMENT_TAKEN');
       }
     }
+    const emailChanged = dto.email !== undefined && dto.email !== client.email;
     Object.assign(client, this.toEntityData(dto));
-    return ClientResponseDto.from(await this.clients.save(client));
+    const saved = await this.clients.save(client);
+    if (emailChanged && this.notifications) {
+      await this.notifications.syncRecipientForClient(saved.id, saved.email);
+    }
+    return ClientResponseDto.from(saved);
   }
 
   async resolveForWorkOrder(
@@ -57,21 +64,45 @@ export class ClientsService {
     if (input.clientId) {
       const existing = await this.clients.findById(input.clientId, manager);
       if (!existing) throw new NotFoundError('Cliente', input.clientId);
+      if (!existing.documentId) {
+        throw new InvalidInputError(
+          'El cliente seleccionado no tiene cédula / RUC registrado. Actualice sus datos antes de registrar el ingreso.',
+          'CLIENT_DOCUMENT_REQUIRED',
+        );
+      }
       return existing;
     }
     if (!input.client) {
       throw new InvalidInputError('Debe indicar clientId o los datos del cliente', 'CLIENT_REQUIRED');
     }
     const data = input.client;
-    if (data.documentId) {
-      const byDocument = await this.clients.findByDocumentId(data.documentId, manager);
-      if (byDocument) {
-        // Cliente ya registrado: se actualiza su contacto, pero se conserva su fecha de ingreso original.
-        Object.assign(byDocument, this.toEntityData({ ...data, registeredAt: undefined }));
-        return this.clients.save(byDocument, manager);
-      }
+    if (!data.documentId) {
+      throw new InvalidInputError('La cédula / RUC del cliente es obligatoria', 'CLIENT_DOCUMENT_REQUIRED');
+    }
+    const byDocument = await this.clients.findByDocumentId(data.documentId, manager);
+    if (byDocument) {
+      // Cliente ya registrado: se actualiza su contacto, pero se conserva su fecha de ingreso original.
+      Object.assign(byDocument, this.toEntityData({ ...data, registeredAt: undefined }));
+      return this.clients.save(byDocument, manager);
     }
     return this.clients.save(this.clients.create(this.toNewEntityData(data), manager), manager);
+  }
+
+  async updateForIntake(
+    id: string,
+    dto: UpdateClientDto,
+    manager: EntityManager,
+  ): Promise<ClientEntity> {
+    const client = await this.clients.findById(id, manager);
+    if (!client) throw new NotFoundError('Cliente', id);
+    if (dto.documentId && dto.documentId !== client.documentId) {
+      const other = await this.clients.findByDocumentId(dto.documentId, manager);
+      if (other && other.id !== id) {
+        throw new ConflictError('Ya existe un cliente con ese documento', 'CLIENT_DOCUMENT_TAKEN');
+      }
+    }
+    Object.assign(client, this.toEntityData(dto));
+    return this.clients.save(client, manager);
   }
 
   async getEntity(id: string): Promise<ClientEntity> {

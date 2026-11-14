@@ -10,7 +10,8 @@
 <h3 style="font-size:16px;margin:20px 0 8px;">Datos del equipo</h3>
 <table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
   <tr><td style="color:#6b7280;width:40%;">Tipo</td><td>{{equipment.typeName}}</td></tr>
-  <tr><td style="color:#6b7280;">Marca / Modelo</td><td>{{equipment.brand}} {{equipment.model}}</td></tr>
+  <tr><td style="color:#6b7280;">Marca</td><td>{{equipment.brand}}</td></tr>
+  <tr><td style="color:#6b7280;">Modelo del equipo</td><td>{{equipment.model}}</td></tr>
   {{#if equipment.serialNumber}}<tr><td style="color:#6b7280;">N.º de serie</td><td>{{equipment.serialNumber}}</td></tr>{{/if}}
   {{#each equipment.specs}}<tr><td style="color:#6b7280;">{{label}}</td><td>{{value}}</td></tr>{{/each}}
 </table>
@@ -18,12 +19,12 @@
 <h3 style="font-size:16px;margin:20px 0 8px;">Falla reportada</h3>
 <p style="margin:0;">{{nl2br reportedIssue}}</p>
 
-<h3 style="font-size:16px;margin:20px 0 8px;">Condiciones de recepción</h3>
+<h3 style="font-size:16px;margin:20px 0 8px;">Condiciones registradas al ingreso</h3>
 <table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
   <tr><td style="color:#6b7280;width:40%;">¿Enciende?</td><td>{{reception.powerStatus}}</td></tr>
   <tr><td style="color:#6b7280;">Estado físico</td><td>{{reception.physicalCondition}}</td></tr>
-  {{#if reception.visibleDamage}}<tr><td style="color:#6b7280;">Daños visibles</td><td>{{nl2br reception.visibleDamage}}</td></tr>{{/if}}
-  {{#if reception.functionalNotes}}<tr><td style="color:#6b7280;">Observaciones</td><td>{{nl2br reception.functionalNotes}}</td></tr>{{/if}}
+  <tr><td style="color:#6b7280;">Daños visibles</td><td>{{#if reception.visibleDamage}}{{nl2br reception.visibleDamage}}{{else}}Sin daños visibles{{/if}}</td></tr>
+  <tr><td style="color:#6b7280;">Observaciones funcionales</td><td>{{#if reception.functionalNotes}}{{nl2br reception.functionalNotes}}{{else}}Sin observaciones adicionales{{/if}}</td></tr>
 </table>
 
 <h3 style="font-size:16px;margin:20px 0 8px;">Accesorios recibidos</h3>

@@ -23,6 +23,8 @@ export interface ValidatedFile {
   size: number;
 }
 
+export const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+
 const ZIP_BASED = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -39,20 +41,31 @@ export class FileUploadPolicy {
     return category === AttachmentCategory.TECHNICAL_DOCUMENT ? DOCUMENT_MIME_TYPES : IMAGE_MIME_TYPES;
   }
 
-  static validate(file: UploadedFileLike, category: AttachmentCategory): ValidatedFile {
+  static validate(
+    file: UploadedFileLike,
+    category: AttachmentCategory,
+    maxBytes = MAX_FILE_SIZE_BYTES,
+  ): ValidatedFile {
     const allowed = FileUploadPolicy.allowedFor(category);
     const declared = file.mimetype.toLowerCase();
     if (!allowed.includes(declared)) {
-      throw new InvalidInputError(
-        `Tipo de archivo no permitido: ${file.originalname} (${declared})`,
-        'FILE_TYPE_NOT_ALLOWED',
-        {
-          allowed,
-        },
-      );
+      const msg =
+        category === AttachmentCategory.TECHNICAL_DOCUMENT
+          ? `Tipo de archivo no permitido: ${file.originalname} (${declared})`
+          : `Solo se permiten archivos de fotografía (JPG, PNG o WEBP). "${file.originalname}" (${declared || 'tipo desconocido'}) no es válido.`;
+      throw new InvalidInputError(msg, 'FILE_TYPE_NOT_ALLOWED', {
+        allowed,
+      });
     }
     if (!file.buffer || file.size === 0)
       throw new InvalidInputError(`Archivo vacío: ${file.originalname}`, 'EMPTY_FILE');
+    if (file.size > maxBytes) {
+      throw new InvalidInputError(
+        `El archivo "${file.originalname}" supera el peso máximo permitido (${Math.round(maxBytes / (1024 * 1024))} MB)`,
+        'FILE_TOO_LARGE',
+        { maxBytes, actualBytes: file.size },
+      );
+    }
 
     const detected = detectFileType(file.buffer);
     const matches =

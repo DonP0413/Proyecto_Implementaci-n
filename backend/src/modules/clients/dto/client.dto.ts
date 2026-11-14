@@ -18,11 +18,11 @@ export class CreateClientDto {
   @Length(3, 150)
   fullName: string;
 
-  @ApiPropertyOptional({ example: '1718123456', description: 'Cédula, RUC o pasaporte' })
-  @IsOptional()
+  @ApiProperty({ example: '1718123456', description: 'Cédula, RUC o pasaporte (obligatorio)' })
   @Transform(trimOrNull)
+  @IsString({ message: 'La cédula / RUC del cliente es obligatoria' })
   @Matches(/^[A-Za-z0-9-]{5,20}$/, { message: 'documentId debe tener 5-20 caracteres alfanuméricos' })
-  documentId?: string;
+  documentId: string;
 
   @ApiProperty({ example: 'maria.perez@example.com' })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))

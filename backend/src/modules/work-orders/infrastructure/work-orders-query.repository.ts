@@ -4,7 +4,8 @@
  * detalle; no modifican estado. Los filtros usan los índices definidos en
  * V1 (trigram para búsquedas parciales, compuesto status+received_at).
  */
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Brackets, DataSource } from 'typeorm';
 import { WorkOrderStatus } from '../domain/work-order-status';
@@ -15,6 +16,7 @@ export interface WorkOrderSearchFilters {
   code?: string;
   client?: string;
   clientId?: string;
+  equipmentId?: string;
   serial?: string;
   status?: WorkOrderStatus[];
   dateFrom?: string;
@@ -28,7 +30,10 @@ const like = (value: string) => `%${value.replace(/[%_\\]/g, '\\$&')}%`;
 
 @Injectable()
 export class WorkOrdersQueryRepository {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    @Optional() private readonly config?: ConfigService,
+  ) {}
 
   async search(filters: WorkOrderSearchFilters): Promise<[WorkOrderEntity[], number]> {
     const qb = this.dataSource
@@ -67,15 +72,28 @@ export class WorkOrdersQueryRepository {
       );
     }
     if (filters.clientId) qb.andWhere('wo.clientId = :clientId', { clientId: filters.clientId });
+    if (filters.equipmentId) qb.andWhere('wo.equipmentId = :equipmentId', { equipmentId: filters.equipmentId });
     if (filters.serial) qb.andWhere('e.serialNumber ILIKE :serial', { serial: like(filters.serial) });
     if (filters.status?.length) qb.andWhere('wo.status IN (:...status)', { status: filters.status });
     if (filters.technicianId) {
       qb.andWhere('wo.assignedTechnicianId = :technicianId', { technicianId: filters.technicianId });
     }
-    if (filters.dateFrom) qb.andWhere('wo.receivedAt >= :dateFrom', { dateFrom: filters.dateFrom });
+    const timeZone = this.config?.get<string>('workOrders.timezone') ?? 'America/Guayaquil';
+    if (filters.dateFrom) {
+      qb.andWhere('wo.receivedAt >= (CAST(:dateFrom AS timestamp) AT TIME ZONE :timeZone)', {
+        dateFrom: filters.dateFrom.slice(0, 10),
+        timeZone,
+      });
+    }
     if (filters.dateTo) {
-      // dateTo inclusivo: se compara contra el inicio del día siguiente
-      qb.andWhere(`wo.receivedAt < (CAST(:dateTo AS date) + INTERVAL '1 day')`, { dateTo: filters.dateTo });
+      // dateTo inclusivo: se compara contra el inicio del día siguiente en la zona horaria del negocio
+      qb.andWhere(
+        `wo.receivedAt < ((CAST(:dateTo AS timestamp) + INTERVAL '1 day') AT TIME ZONE :timeZone)`,
+        {
+          dateTo: filters.dateTo.slice(0, 10),
+          timeZone,
+        },
+      );
     }
     return qb.getManyAndCount();
   }

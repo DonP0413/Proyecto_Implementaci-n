@@ -46,6 +46,18 @@ export class NotificationsRepository {
     return count > 0;
   }
 
+  async claimById(id: string): Promise<NotificationEntity | null> {
+    const rows: Array<{ id: string }> = await this.repository.query(
+      `UPDATE notifications
+          SET status = 'SENDING', attempts = attempts + 1, updated_at = now()
+        WHERE id = $1 AND status = 'PENDING'
+        RETURNING id`,
+      [id],
+    );
+    if (rows.length === 0) return null;
+    return this.findById(id);
+  }
+
   async claimBatch(limit: number): Promise<NotificationEntity[]> {
     const rows: Array<{ id: string }> = await this.repository.query(
       `WITH claimed AS (
@@ -94,10 +106,52 @@ export class NotificationsRepository {
     );
   }
 
-  async resetForManualRetry(id: string): Promise<void> {
+  async resetForManualRetry(id: string, recipientEmail?: string): Promise<void> {
     await this.repository.update(
       { id },
-      { status: NotificationStatus.PENDING, attempts: 0, nextAttemptAt: new Date() },
+      {
+        status: NotificationStatus.PENDING,
+        attempts: 0,
+        lastError: null,
+        nextAttemptAt: new Date(),
+        ...(recipientEmail ? { recipientEmail } : {}),
+      },
+    );
+  }
+
+  async findClientByWorkOrderId(workOrderId: string): Promise<{ id: string; email: string } | null> {
+    const rows: Array<{ id: string; email: string }> = await this.repository.query(
+      `SELECT c.id, c.email
+         FROM work_orders wo
+         JOIN clients c ON c.id = wo.client_id
+        WHERE wo.id = $1`,
+      [workOrderId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async updateClientEmailByWorkOrderId(workOrderId: string, email: string): Promise<void> {
+    await this.repository.query(
+      `UPDATE clients c
+          SET email = $1, updated_at = now()
+         FROM work_orders wo
+        WHERE wo.id = $2 AND c.id = wo.client_id`,
+      [email, workOrderId],
+    );
+  }
+
+  async updateFailedRecipientsByClient(
+    clientId: string,
+    recipientEmail: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const executor = manager ?? this.repository.manager;
+    await executor.query(
+      `UPDATE notifications n
+          SET recipient_email = $1, updated_at = now()
+         FROM work_orders wo
+        WHERE wo.id = n.work_order_id AND wo.client_id = $2 AND n.status = 'FAILED'`,
+      [recipientEmail, clientId],
     );
   }
 

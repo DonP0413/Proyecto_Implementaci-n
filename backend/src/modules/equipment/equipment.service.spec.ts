@@ -1,5 +1,7 @@
+import type { EntityManager } from 'typeorm';
 import { InvalidInputError } from '../../common/errors/domain.errors';
 import type { EquipmentTypeEntity } from './equipment-type.entity';
+import type { EquipmentEntity } from './equipment.entity';
 import { EquipmentRepository } from './equipment.repository';
 import { specsWithLabels } from '../work-orders/application/work-order.mapper';
 import { EquipmentService } from './equipment.service';
@@ -100,5 +102,88 @@ describe('specsWithLabels', () => {
       { key: 'ram', label: 'Memoria RAM', value: '8 GB' },
       { key: '+Lector de huella', label: 'Lector de huella', value: 'Sí' },
     ]);
+  });
+});
+
+describe('EquipmentService.resolveForWorkOrder — serie repetida / forceNewEquipment', () => {
+  const laptop = {
+    id: 1,
+    code: 'LAPTOP',
+    name: 'Laptop',
+    isActive: true,
+    specSchema: [{ key: 'ram', label: 'RAM', type: 'text' as const }],
+  } as EquipmentTypeEntity;
+
+  const manager = {} as EntityManager;
+
+  it('reutiliza el equipo existente cuando coincide cliente, tipo, serie, marca y modelo', async () => {
+    const existing = {
+      id: 'eq-existing',
+      clientId: 'c1',
+      equipmentTypeId: 1,
+      brand: 'HP',
+      model: 'Pavilion',
+      serialNumber: 'SN-DUP-1',
+      technicalSpecs: { ram: '8 GB' },
+    } as unknown as EquipmentEntity;
+    const repo = {
+      findTypeById: jest.fn().mockResolvedValue(laptop),
+      findMatching: jest.fn().mockResolvedValue(existing),
+      create: jest.fn(),
+      save: jest.fn((entity: EquipmentEntity) => Promise.resolve(entity)),
+    };
+    const service = new EquipmentService(repo as unknown as EquipmentRepository);
+
+    const { equipment } = await service.resolveForWorkOrder(
+      'c1',
+      {
+        equipmentTypeId: 1,
+        brand: 'HP',
+        model: 'Pavilion',
+        serialNumber: 'SN-DUP-1',
+        technicalSpecs: {},
+      },
+      manager,
+    );
+
+    expect(repo.findMatching).toHaveBeenCalledTimes(1);
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(equipment.id).toBe('eq-existing');
+  });
+
+  it('crea una unidad física independiente cuando forceNewEquipment es true', async () => {
+    const repo = {
+      findTypeById: jest.fn().mockResolvedValue(laptop),
+      findMatching: jest.fn(),
+      create: jest.fn((data: Partial<EquipmentEntity>) => ({ id: 'eq-new', ...data }) as EquipmentEntity),
+      save: jest.fn((entity: EquipmentEntity) => Promise.resolve(entity)),
+    };
+    const service = new EquipmentService(repo as unknown as EquipmentRepository);
+
+    const { equipment } = await service.resolveForWorkOrder(
+      'c1',
+      {
+        equipmentTypeId: 1,
+        brand: 'HP',
+        model: 'Pavilion',
+        serialNumber: 'SN-DUP-1',
+        technicalSpecs: { ram: '16 GB' },
+        forceNewEquipment: true,
+      },
+      manager,
+    );
+
+    expect(repo.findMatching).not.toHaveBeenCalled();
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: 'c1',
+        equipmentTypeId: 1,
+        brand: 'HP',
+        model: 'Pavilion',
+        serialNumber: 'SN-DUP-1',
+      }),
+      manager,
+    );
+    expect(equipment.id).toBe('eq-new');
   });
 });

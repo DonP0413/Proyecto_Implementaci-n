@@ -14,12 +14,14 @@ import { formatDateTime, formatMoney } from '../../../lib/format';
 import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../stores/toastStore';
 import { StatusBadge } from '../components/StatusBadge';
+import { STATUS_LABELS, STATUS_ORDER } from '../constants';
 import { useAssignTechnician, useChangeStatus, useSendQuotation, useSendReadyForPickup, useTechnicians } from '../hooks';
 
 export function TrackingSection({ wo }: { wo: WorkOrderDetail }) {
   const hasRole = useAuthStore((s) => s.hasRole);
   const canOperate = hasRole('RECEPCIONISTA', 'TECNICO');
   const [target, setTarget] = useState<WorkOrderStatus | null>(null);
+  const [transitionError, setTransitionError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [confirmNotify, setConfirmNotify] = useState<'quotation' | 'ready' | null>(null);
 
@@ -54,6 +56,36 @@ export function TrackingSection({ wo }: { wo: WorkOrderDetail }) {
     }
   };
 
+  const allowedStatuses = new Set(wo.allowedTransitions.map((t) => t.status));
+
+  const handleTransitionClick = (status: WorkOrderStatus) => {
+    if (allowedStatuses.has(status)) {
+      setTransitionError(null);
+      setTarget(status);
+      return;
+    }
+
+    if (wo.status === 'LISTO_PARA_RETIRAR' && status === 'ENTREGADO') {
+      const msg = 'Para pasar a "Entregado", registre la entrega en la pestaña Entrega.';
+      setTransitionError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    const nextAllowed =
+      wo.allowedTransitions.length > 0
+        ? wo.allowedTransitions.map((t) => `"${t.label}"`).join(' o ')
+        : wo.status === 'EN_REVISION'
+          ? '"Cotización generada" (desde la pestaña Cotización)'
+          : wo.status === 'LISTO_PARA_RETIRAR'
+            ? '"Entregado" (desde la pestaña Entrega)'
+            : 'completar el flujo secuencial';
+
+    const msg = `No se puede pasar de "${STATUS_LABELS[wo.status]}" directamente a "${STATUS_LABELS[status]}". Siguiente estado permitido: ${nextAllowed}.`;
+    setTransitionError(msg);
+    toast.error(msg);
+  };
+
   return (
     <div className="grid-2">
       <Card title="Acciones">
@@ -64,13 +96,20 @@ export function TrackingSection({ wo }: { wo: WorkOrderDetail }) {
         ) : (
           <>
             <p className="muted">Mover a:</p>
+            {transitionError && <Alert kind="error">{transitionError}</Alert>}
             <div className="button-row">
-              {wo.allowedTransitions.map((t) => (
-                <Button key={t.status} variant="secondary" onClick={() => setTarget(t.status)}>
-                  {t.label}
-                </Button>
-              ))}
-              {wo.allowedTransitions.length === 0 && <span className="muted">Use las pestañas Cotización o Entrega.</span>}
+              {STATUS_ORDER.filter((s) => s !== wo.status).map((status) => {
+                const isAllowed = allowedStatuses.has(status);
+                return (
+                  <Button
+                    key={status}
+                    variant={isAllowed ? 'secondary' : 'ghost'}
+                    onClick={() => handleTransitionClick(status)}
+                  >
+                    {STATUS_LABELS[status]}
+                  </Button>
+                );
+              })}
             </div>
 
             <h3 className="subheading">Notificar al cliente</h3>

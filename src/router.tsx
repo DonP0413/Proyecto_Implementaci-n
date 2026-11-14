@@ -36,7 +36,7 @@ export const router = createBrowserRouter([
       {
         path: 'notifications',
         element: (
-          <ProtectedRoute roles={['RECEPCIONISTA']}>
+          <ProtectedRoute roles={['RECEPCIONISTA', 'TECNICO']}>
             <FailedNotificationsPage />
           </ProtectedRoute>
         ),

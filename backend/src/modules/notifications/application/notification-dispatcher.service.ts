@@ -88,6 +88,14 @@ export class NotificationDispatcherService implements OnApplicationBootstrap, On
     }
   }
 
+  /** Reintenta una notificación concreta inmediatamente y actualiza su estado final (SENT/FAILED). */
+  async deliverById(notificationId: string): Promise<void> {
+    const claimed = await this.notifications.claimById(notificationId);
+    if (!claimed) return;
+    await this.deliver(claimed);
+    this.metrics.notificationsPending.set(await this.notifications.countPending());
+  }
+
   async deliver(notification: NotificationEntity): Promise<void> {
     const context = {
       notificationId: notification.id,

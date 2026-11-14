@@ -35,7 +35,11 @@ import {
   WorkOrderStateMachine,
   WorkOrderStatus,
 } from '../domain/work-order-status';
-import { AttachmentCategory } from '../domain/work-order.enums';
+import {
+  AttachmentCategory,
+  PHYSICAL_CONDITION_LABELS,
+  POWER_STATUS_LABELS,
+} from '../domain/work-order.enums';
 import { WorkOrderEntity } from '../infrastructure/entities';
 import { WorkOrdersRepository } from '../infrastructure/work-orders.repository';
 import { AttachmentsService } from './attachments.service';
@@ -45,6 +49,7 @@ import {
   CreateQuotationDto,
   CreateWorkOrderDto,
   RegisterDeliveryDto,
+  UpdateWorkOrderIntakeDto,
 } from './dto/work-order-input.dto';
 import type { WorkOrderCreatedDto } from './dto/work-order-output.dto';
 import type { UploadedFileLike } from './file-upload.policy';
@@ -219,17 +224,17 @@ export class WorkOrderCommandService {
   }
 
   async changeStatus(id: string, dto: ChangeStatusDto, actor: AuthUser): Promise<void> {
-    if (DEDICATED_TRANSITION_TARGETS.includes(dto.status)) {
-      throw new BusinessRuleError(
-        dto.status === WorkOrderStatus.COTIZACION_GENERADA
-          ? 'Para pasar a "Cotización generada" registre la cotización'
-          : 'Para marcar como "Entregado" registre la entrega',
-        'DEDICATED_TRANSITION_REQUIRED',
-      );
-    }
     await this.dataSource.transaction(async (manager) => {
       const wo = await this.lock(id, manager);
       WorkOrderStateMachine.assertTransition(wo.status, dto.status);
+      if (DEDICATED_TRANSITION_TARGETS.includes(dto.status)) {
+        throw new BusinessRuleError(
+          dto.status === WorkOrderStatus.COTIZACION_GENERADA
+            ? 'Para pasar a "Cotización generada" registre la cotización'
+            : 'Para marcar como "Entregado" registre la entrega',
+          'DEDICATED_TRANSITION_REQUIRED',
+        );
+      }
       await this.transition(wo, dto.status, dto.note ?? null, actor, manager);
     });
     this.metrics.workOrderStatusChanges.inc({ to_status: dto.status });
@@ -245,6 +250,185 @@ export class WorkOrderCommandService {
       await this.workOrders.updateWorkOrder(id, { assignedTechnicianId: dto.technicianId }, manager);
     });
     this.logger.log({ workOrderId: id, technicianId: dto.technicianId, actor: actor.id }, 'Técnico asignado');
+  }
+
+  /**
+   * Corrección de datos de ingreso mientras el trabajo permanece en estado INGRESADO.
+   * Actualiza cliente, equipo, falla y recepción, regenera el comprobante PDF y deja
+   * auditoría en status_history indicando quién realizó la corrección, cuándo y qué cambió.
+   */
+  async updateIntake(id: string, dto: UpdateWorkOrderIntakeDto, actor: AuthUser): Promise<void> {
+    const tracker: string[] = [];
+    let emailChanged = false;
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const wo = await this.lock(id, manager);
+        if (wo.status !== WorkOrderStatus.INGRESADO) {
+          throw new BusinessRuleError(
+            `Sólo se pueden corregir los datos del ingreso mientras la orden está en estado "Ingresado" (estado actual: ${WORK_ORDER_STATUS_LABELS[wo.status]})`,
+            'INTAKE_EDIT_NOT_ALLOWED',
+            { status: wo.status },
+          );
+        }
+
+        const before = await this.workOrders.findForClientDocuments(id, manager);
+        if (!before) throw new NotFoundError('Orden de trabajo', id);
+
+        const changes: string[] = [];
+        const recordDiff = (label: string, oldVal: string | null | undefined, newVal: string | null | undefined) => {
+          const a = (oldVal ?? '').trim();
+          const b = (newVal ?? '').trim();
+          if (a !== b) {
+            const fmt = (v: string) => (v.length > 35 ? `${v.slice(0, 32)}...` : v || 'vacío');
+            changes.push(`${label} (${fmt(a)} → ${fmt(b)})`);
+          }
+        };
+
+        emailChanged = before.client.email.trim().toLowerCase() !== dto.client.email.trim().toLowerCase();
+        recordDiff('Nombre', before.client.fullName, dto.client.fullName);
+        recordDiff('Cédula/RUC', before.client.documentId, dto.client.documentId);
+        recordDiff('Correo', before.client.email, dto.client.email);
+        recordDiff('Teléfono', before.client.phone, dto.client.phone ?? null);
+        recordDiff('Dirección', before.client.address, dto.client.address ?? null);
+
+        await this.clients.updateForIntake(before.client.id, dto.client, manager);
+
+        const oldTypeName = before.equipment.equipmentType?.name ?? String(before.equipment.equipmentTypeId);
+        const oldBrand = before.equipment.brand;
+        const oldModel = before.equipment.model;
+        const oldSerial = before.equipment.serialNumber;
+        const { type: newType, specs } = await this.equipment.updateForIntake(
+          before.equipment.id,
+          dto.equipment,
+          manager,
+        );
+
+        recordDiff('Tipo de equipo', oldTypeName, newType.name);
+        recordDiff('Marca', oldBrand, dto.equipment.brand);
+        recordDiff('Modelo', oldModel, dto.equipment.model);
+        recordDiff('N.º de serie', oldSerial, dto.equipment.serialNumber);
+
+        const serializeSpecs = (obj: Record<string, string> = {}) =>
+          JSON.stringify(
+            Object.keys(obj)
+              .sort()
+              .map((k) => [k, obj[k]]),
+          );
+        if (serializeSpecs(before.specsSnapshot) !== serializeSpecs(specs)) {
+          changes.push('Características técnicas');
+        }
+
+        recordDiff('Falla reportada', before.reportedIssue, dto.reportedIssue);
+        recordDiff('Entrega estimada', before.estimatedDeliveryDate, dto.estimatedDeliveryDate ?? null);
+
+        const rc = before.receptionCondition;
+        recordDiff(
+          '¿Enciende?',
+          rc ? POWER_STATUS_LABELS[rc.powerStatus] : null,
+          POWER_STATUS_LABELS[dto.reception.powerStatus],
+        );
+        recordDiff(
+          'Estado físico',
+          rc ? PHYSICAL_CONDITION_LABELS[rc.physicalCondition] : null,
+          PHYSICAL_CONDITION_LABELS[dto.reception.physicalCondition],
+        );
+        recordDiff('Daños visibles', rc?.visibleDamage ?? null, dto.reception.visibleDamage ?? null);
+        recordDiff(
+          'Observaciones funcionales',
+          rc?.functionalNotes ?? null,
+          dto.reception.functionalNotes ?? null,
+        );
+
+        if (changes.length === 0) {
+          throw new InvalidInputError('No se detectaron cambios en los datos del ingreso', 'NO_INTAKE_CHANGES');
+        }
+
+        await this.workOrders.updateWorkOrder(
+          id,
+          {
+            reportedIssue: dto.reportedIssue,
+            specsSnapshot: specs,
+            estimatedDeliveryDate: dto.estimatedDeliveryDate ?? null,
+          },
+          manager,
+        );
+        await this.workOrders.updateReception(
+          id,
+          {
+            powerStatus: dto.reception.powerStatus,
+            physicalCondition: dto.reception.physicalCondition,
+            visibleDamage: dto.reception.visibleDamage ?? null,
+            functionalNotes: dto.reception.functionalNotes ?? null,
+          },
+          manager,
+        );
+
+        await this.workOrders.addStatusHistory(
+          {
+            workOrderId: id,
+            fromStatus: WorkOrderStatus.INGRESADO,
+            toStatus: WorkOrderStatus.INGRESADO,
+            note: `Corrección de ingreso: ${changes.join('; ')}`.slice(0, 500),
+            changedById: actor.id,
+          },
+          manager,
+        );
+
+        // Regenerar el comprobante PDF con los datos corregidos
+        const aggregate = await this.workOrders.findForClientDocuments(id, manager);
+        const pdf = await this.receipts.generate(aggregate!);
+        await this.workOrders.deleteAttachmentsByCategory(id, [AttachmentCategory.RECEIPT_PDF], manager);
+        const receiptEntities = await this.attachments.persist(
+          {
+            workOrderId: id,
+            category: AttachmentCategory.RECEIPT_PDF,
+            uploadedById: actor.id,
+            files: [
+              {
+                originalName: `comprobante-${wo.code}.pdf`,
+                mimeType: 'application/pdf',
+                extension: 'pdf',
+                buffer: pdf,
+                size: pdf.length,
+              },
+            ],
+          },
+          manager,
+          tracker,
+        );
+
+        if (emailChanged) {
+          await this.notifications.syncRecipientForClient(before.client.id, dto.client.email, manager);
+          const photoEntities = await this.workOrders.findAttachmentsByCategory(
+            id,
+            [AttachmentCategory.RECEPTION_PHOTO],
+            manager,
+          );
+          const built = this.payloads.build(NotificationType.RECEPTION, aggregate!, [
+            ...receiptEntities,
+            ...photoEntities,
+          ]);
+          await this.notifications.enqueue(
+            {
+              workOrderId: id,
+              type: NotificationType.RECEPTION,
+              trigger: NotificationTrigger.AUTOMATIC,
+              requestedBy: actor.id,
+              ...built,
+            },
+            manager,
+          );
+        }
+      });
+
+      if (emailChanged) {
+        this.notifications.signalEnqueued();
+      }
+      this.logger.log({ workOrderId: id, actor: actor.id }, 'Datos de ingreso corregidos');
+    } catch (error) {
+      await this.attachments.cleanup(tracker);
+      throw error;
+    }
   }
 
   async createQuotation(id: string, dto: CreateQuotationDto, actor: AuthUser): Promise<void> {
@@ -298,9 +482,13 @@ export class WorkOrderCommandService {
       await this.dataSource.transaction(async (manager) => {
         const wo = await this.lock(id, manager);
         if (wo.status !== WorkOrderStatus.LISTO_PARA_RETIRAR) {
+          const allowed = WorkOrderStateMachine.allowedTransitions(wo.status);
+          const allowedLabels = allowed.map((s) => `"${WORK_ORDER_STATUS_LABELS[s]}"`).join(', ');
+          const suffix = allowedLabels ? ` Siguiente estado permitido: ${allowedLabels}.` : '';
           throw new BusinessRuleError(
-            `Sólo se entregan equipos "Listo para retirar" (estado actual: ${WORK_ORDER_STATUS_LABELS[wo.status]})`,
+            `No se puede pasar de "${WORK_ORDER_STATUS_LABELS[wo.status]}" a "Entregado".${suffix}`,
             'DELIVERY_NOT_ALLOWED',
+            { from: wo.status, to: WorkOrderStatus.ENTREGADO, allowed },
           );
         }
         const existing = await this.workOrders.findForClientDocuments(id, manager);

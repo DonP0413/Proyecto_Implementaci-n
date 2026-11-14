@@ -15,7 +15,7 @@ import { formatDateTime, formatMoney } from '../../../lib/format';
 import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../stores/toastStore';
 import { useCreateQuotation, useSendQuotation } from '../hooks';
-import { quotationSchema, type QuotationFormValues } from '../schemas';
+import { quotationSchema, parseAmountInput, type QuotationFormValues } from '../schemas';
 
 export function QuotationSection({ wo }: { wo: WorkOrderDetail }) {
   const canQuote = useAuthStore((s) => s.hasRole('TECNICO', 'RECEPCIONISTA'));
@@ -63,13 +63,12 @@ export function QuotationSection({ wo }: { wo: WorkOrderDetail }) {
           <form onSubmit={handleSubmit(setPendingQuote)} noValidate>
             <Input
               label="Valor estimado (USD)"
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
               required
               placeholder="Ej.: 45.50"
               error={errors.amount?.message}
-              {...register('amount', { valueAsNumber: true })}
+              {...register('amount', { setValueAs: parseAmountInput })}
             />
             <Textarea
               label="Detalle de la reparación"

@@ -57,10 +57,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       body.statusCode = exception.getStatus();
       body.code = HttpStatus[body.statusCode] ?? 'HTTP_ERROR';
       const res = exception.getResponse();
-      body.message =
+      const rawMessage =
         typeof res === 'string'
           ? res
           : ((res as { message?: string | string[] }).message ?? exception.message);
+      if (body.statusCode === HttpStatus.PAYLOAD_TOO_LARGE || rawMessage === 'File too large') {
+        body.code = 'FILE_TOO_LARGE';
+        body.message = 'El archivo supera el peso máximo permitido (8 MB)';
+      } else if (rawMessage === 'Too many files') {
+        body.code = 'TOO_MANY_FILES';
+        body.message = 'Se superó la cantidad máxima de archivos permitidos';
+      } else {
+        body.message = rawMessage;
+      }
     } else if (exception instanceof QueryFailedError) {
       const pgCode = (
         exception as QueryFailedError & { driverError?: { code?: string; constraint?: string } }

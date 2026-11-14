@@ -33,6 +33,7 @@ describe('ClientsService — fecha de ingreso', () => {
   it('guarda la fecha de ingreso indicada', async () => {
     const result = await service.create({
       fullName: 'Ana Pérez',
+      documentId: '1718123456',
       email: 'ana@example.com',
       registeredAt: '2025-03-10',
     });
@@ -40,13 +41,22 @@ describe('ClientsService — fecha de ingreso', () => {
   });
 
   it('sin fecha de ingreso usa la fecha de hoy en Ecuador', async () => {
-    const result = await service.create({ fullName: 'Ana Pérez', email: 'ana@example.com' });
+    const result = await service.create({
+      fullName: 'Ana Pérez',
+      documentId: '1718123456',
+      email: 'ana@example.com',
+    });
     expect(result.registeredAt).toBe(todayLocalDate('America/Guayaquil'));
   });
 
   it('rechaza una fecha de ingreso futura', async () => {
     await expect(
-      service.create({ fullName: 'Ana Pérez', email: 'ana@example.com', registeredAt: '2999-01-01' }),
+      service.create({
+        fullName: 'Ana Pérez',
+        documentId: '1718123456',
+        email: 'ana@example.com',
+        registeredAt: '2999-01-01',
+      }),
     ).rejects.toBeInstanceOf(InvalidInputError);
     expect(repo.save).not.toHaveBeenCalled();
   });

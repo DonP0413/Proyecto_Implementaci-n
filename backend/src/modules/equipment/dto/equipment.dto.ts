@@ -1,7 +1,7 @@
 /** Objetivo: DTOs de equipos y tipos de equipo. */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsObject, IsOptional, IsString, Length, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsObject, IsOptional, IsString, Length, Min } from 'class-validator';
 import type { EquipmentTypeEntity, SpecField } from '../equipment-type.entity';
 import type { EquipmentEntity } from '../equipment.entity';
 
@@ -30,17 +30,24 @@ export class EquipmentInputDto {
   @Length(1, 80)
   model: string;
 
-  @ApiPropertyOptional({ example: '5CD1234XYZ' })
-  @IsOptional()
+  @ApiProperty({ example: '5CD1234XYZ', description: 'Número de serie del equipo (obligatorio)' })
   @Transform(trim)
-  @IsString()
-  @MaxLength(80)
-  serialNumber?: string;
+  @IsString({ message: 'El número de serie es obligatorio' })
+  @Length(1, 80, { message: 'El número de serie debe tener entre 1 y 80 caracteres' })
+  serialNumber: string;
 
   @ApiPropertyOptional({ example: { ram: '16 GB', storage: '512 GB SSD' } })
   @IsOptional()
   @IsObject()
   technicalSpecs?: Record<string, string | number>;
+
+  @ApiPropertyOptional({
+    description:
+      'Si es true, registra una unidad física independiente aunque exista otro equipo con la misma serie (ej. error de fábrica o reacondicionado).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  forceNewEquipment?: boolean;
 }
 
 export class EquipmentTypeResponseDto {
@@ -57,6 +64,7 @@ export class EquipmentTypeResponseDto {
 export class EquipmentResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() clientId: string;
+  @ApiPropertyOptional() client?: { id: string; fullName: string; documentId: string | null };
   @ApiProperty() equipmentType: { id: number; code: string; name: string };
   @ApiProperty() brand: string;
   @ApiProperty() model: string;
@@ -67,6 +75,13 @@ export class EquipmentResponseDto {
     return {
       id: entity.id,
       clientId: entity.clientId,
+      client: entity.client
+        ? {
+            id: entity.client.id,
+            fullName: entity.client.fullName,
+            documentId: entity.client.documentId,
+          }
+        : undefined,
       equipmentType: {
         id: entity.equipmentType?.id ?? entity.equipmentTypeId,
         code: entity.equipmentType?.code ?? '',
