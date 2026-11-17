@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" role="img" aria-label="PINTO TECH">
+  <rect width="140" height="140" rx="26" fill="#1377BC" />
+  <g transform="translate(13, 6) scale(0.95)">
+    <path
+      fill="none"
+      stroke="#FFFFFF"
+      stroke-width="11"
+      stroke-linejoin="round"
+      d="M 28,10 H 92 A 18,18 0 0 1 110,28 V 86 A 18,18 0 0 1 92,104 H 28 A 18,18 0 0 1 10,86 V 28 A 18,18 0 0 1 28,10 Z"
+    />
+    <path fill="#FFFFFF" d="M 35,101 L 31,130 L 63,101 Z" />
+    <path
+      fill="none"
+      stroke="#FFFFFF"
+      stroke-width="10.5"
+      stroke-linecap="butt"
+      stroke-linejoin="round"
+      d="M 41.25,99 V 64 H 71 A 10,10 0 0 0 81,54 V 41 A 10,10 0 0 0 71,31 H 49.25 A 8,8 0 0 0 41.25,39 V 50"
+    />
+  </g>
+</svg>
