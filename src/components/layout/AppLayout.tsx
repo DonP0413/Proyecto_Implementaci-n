@@ -1,7 +1,7 @@
-/** Objetivo: layout principal (barra lateral de navegación + cabecera con usuario). */
+/** Objetivo: layout principal (barra lateral corporativa + cabecera con usuario). */
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { env } from '../../config/env';
 import { useAuthStore } from '../../stores/authStore';
+import { BrandLogo } from '../brand/BrandLogo';
 
 const ROLE_LABELS = { ADMIN: 'Administrador', RECEPCIONISTA: 'Recepción', TECNICO: 'Técnico' } as const;
 
@@ -18,8 +18,7 @@ export function AppLayout() {
     <div className="layout">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-logo">PT</span>
-          <span className="brand-name">{env.appName}</span>
+          <BrandLogo variant="negativo" size="md" showTagline />
         </div>
         <nav className="nav" aria-label="Navegación principal">
           <NavLink to="/" end>
@@ -31,10 +30,17 @@ export function AppLayout() {
           {hasRole('RECEPCIONISTA', 'TECNICO') && <NavLink to="/notifications">Correos fallidos</NavLink>}
           {hasRole('ADMIN') && <NavLink to="/users">Usuarios</NavLink>}
         </nav>
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-title">Especialistas en reparaciones electrónicas</div>
+          <div>Servicio Confiable · Calidad y Garantía</div>
+        </div>
       </aside>
       <div className="main">
         <header className="topbar">
-          <div />
+          <div className="topbar-brand">
+            <span className="topbar-brand-dot" aria-hidden="true" />
+            <span>PINTO TECH · Centro de Soporte Técnico y Reparación Especializada</span>
+          </div>
           <div className="user-box">
             <div className="user-info">
               <strong>{user?.fullName}</strong>
