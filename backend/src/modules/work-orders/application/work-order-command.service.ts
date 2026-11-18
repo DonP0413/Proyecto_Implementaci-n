@@ -1,13 +1,13 @@
 /**
  * Objetivo: casos de uso de ESCRITURA (Command side) del agregado WorkOrder.
  *   - create            : registro de ingreso + estado de recepción + fotos +
- *                         comprobante PDF + notificación automática de ingreso (RF 1-4).
+ *                         comprobante PDF de ingreso (RF 1-3).
  *   - changeStatus      : seguimiento con máquina de estados (RF 5).
  *   - assignTechnician  : asignación de responsable.
  *   - createQuotation   : registra cotización y pasa a COTIZACION_GENERADA (RF 6).
- *   - registerDelivery  : registro de entrega + notificación automática (RF 7-8).
- * Cada caso de uso es UNA transacción. Los correos se encolan en la misma
- * transacción (Transactional Outbox): si algo falla, no se envía nada.
+ *   - registerDelivery  : registro de entrega (RF 7).
+ * Cada caso de uso es UNA transacción: si algo falla, no se guarda nada.
+ * Al cliente se le entregan documentos PDF (ver ReceiptService), no correos.
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,8 +24,6 @@ import { CLOCK_SKEW_MS, toLocalDate } from '../../../common/time/local-date';
 import { ClientsService } from '../../clients/clients.service';
 import { EquipmentService } from '../../equipment/equipment.service';
 import { MetricsService } from '../../metrics/metrics.service';
-import { NotificationsService } from '../../notifications/application/notifications.service';
-import { NotificationTrigger, NotificationType } from '../../notifications/domain/notification.enums';
 import { UserRole } from '../../users/domain/user-role.enum';
 import { UsersService } from '../../users/users.service';
 import { WorkOrderCodeFactory } from '../domain/work-order-code';
@@ -54,7 +52,6 @@ import {
 import type { WorkOrderCreatedDto } from './dto/work-order-output.dto';
 import type { UploadedFileLike } from './file-upload.policy';
 import { formatMoney } from './formatters';
-import { NotificationPayloadFactory } from './notification-payload.factory';
 import { ReceiptService } from './receipt.service';
 
 @Injectable()
@@ -69,8 +66,6 @@ export class WorkOrderCommandService {
     private readonly users: UsersService,
     private readonly attachments: AttachmentsService,
     private readonly receipts: ReceiptService,
-    private readonly payloads: NotificationPayloadFactory,
-    private readonly notifications: NotificationsService,
     private readonly metrics: MetricsService,
     private readonly config: ConfigService,
   ) {}
@@ -156,7 +151,7 @@ export class WorkOrderCommandService {
           manager,
         );
 
-        const photoEntities = await this.attachments.persist(
+        await this.attachments.persist(
           {
             workOrderId: wo.id,
             category: AttachmentCategory.RECEPTION_PHOTO,
@@ -169,7 +164,7 @@ export class WorkOrderCommandService {
 
         const aggregate = await this.workOrders.findForClientDocuments(wo.id, manager);
         const pdf = await this.receipts.generate(aggregate!, validPhotos[0]);
-        const receiptEntities = await this.attachments.persist(
+        await this.attachments.persist(
           {
             workOrderId: wo.id,
             category: AttachmentCategory.RECEIPT_PDF,
@@ -187,25 +182,9 @@ export class WorkOrderCommandService {
           manager,
           tracker,
         );
-
-        const built = this.payloads.build(NotificationType.RECEPTION, aggregate!, [
-          ...receiptEntities,
-          ...photoEntities,
-        ]);
-        await this.notifications.enqueue(
-          {
-            workOrderId: wo.id,
-            type: NotificationType.RECEPTION,
-            trigger: NotificationTrigger.AUTOMATIC,
-            requestedBy: actor.id,
-            ...built,
-          },
-          manager,
-        );
         return wo;
       });
 
-      this.notifications.signalEnqueued();
       this.metrics.workOrdersCreated.inc();
       this.logger.log(
         { workOrderId: workOrder.id, code: workOrder.code, actor: actor.id },
@@ -259,7 +238,6 @@ export class WorkOrderCommandService {
    */
   async updateIntake(id: string, dto: UpdateWorkOrderIntakeDto, actor: AuthUser): Promise<void> {
     const tracker: string[] = [];
-    let emailChanged = false;
     try {
       await this.dataSource.transaction(async (manager) => {
         const wo = await this.lock(id, manager);
@@ -275,7 +253,11 @@ export class WorkOrderCommandService {
         if (!before) throw new NotFoundError('Orden de trabajo', id);
 
         const changes: string[] = [];
-        const recordDiff = (label: string, oldVal: string | null | undefined, newVal: string | null | undefined) => {
+        const recordDiff = (
+          label: string,
+          oldVal: string | null | undefined,
+          newVal: string | null | undefined,
+        ) => {
           const a = (oldVal ?? '').trim();
           const b = (newVal ?? '').trim();
           if (a !== b) {
@@ -284,7 +266,6 @@ export class WorkOrderCommandService {
           }
         };
 
-        emailChanged = before.client.email.trim().toLowerCase() !== dto.client.email.trim().toLowerCase();
         recordDiff('Nombre', before.client.fullName, dto.client.fullName);
         recordDiff('Cédula/RUC', before.client.documentId, dto.client.documentId);
         recordDiff('Correo', before.client.email, dto.client.email);
@@ -340,7 +321,10 @@ export class WorkOrderCommandService {
         );
 
         if (changes.length === 0) {
-          throw new InvalidInputError('No se detectaron cambios en los datos del ingreso', 'NO_INTAKE_CHANGES');
+          throw new InvalidInputError(
+            'No se detectaron cambios en los datos del ingreso',
+            'NO_INTAKE_CHANGES',
+          );
         }
 
         await this.workOrders.updateWorkOrder(
@@ -378,7 +362,7 @@ export class WorkOrderCommandService {
         const aggregate = await this.workOrders.findForClientDocuments(id, manager);
         const pdf = await this.receipts.generate(aggregate!);
         await this.workOrders.deleteAttachmentsByCategory(id, [AttachmentCategory.RECEIPT_PDF], manager);
-        const receiptEntities = await this.attachments.persist(
+        await this.attachments.persist(
           {
             workOrderId: id,
             category: AttachmentCategory.RECEIPT_PDF,
@@ -396,34 +380,8 @@ export class WorkOrderCommandService {
           manager,
           tracker,
         );
-
-        if (emailChanged) {
-          await this.notifications.syncRecipientForClient(before.client.id, dto.client.email, manager);
-          const photoEntities = await this.workOrders.findAttachmentsByCategory(
-            id,
-            [AttachmentCategory.RECEPTION_PHOTO],
-            manager,
-          );
-          const built = this.payloads.build(NotificationType.RECEPTION, aggregate!, [
-            ...receiptEntities,
-            ...photoEntities,
-          ]);
-          await this.notifications.enqueue(
-            {
-              workOrderId: id,
-              type: NotificationType.RECEPTION,
-              trigger: NotificationTrigger.AUTOMATIC,
-              requestedBy: actor.id,
-              ...built,
-            },
-            manager,
-          );
-        }
       });
 
-      if (emailChanged) {
-        this.notifications.signalEnqueued();
-      }
       this.logger.log({ workOrderId: id, actor: actor.id }, 'Datos de ingreso corregidos');
     } catch (error) {
       await this.attachments.cleanup(tracker);
@@ -521,7 +479,7 @@ export class WorkOrderCommandService {
             deliveredAt,
           },
         );
-        const photoEntities = await this.attachments.persist(
+        await this.attachments.persist(
           {
             workOrderId: id,
             category: AttachmentCategory.DELIVERY_PHOTO,
@@ -531,21 +489,7 @@ export class WorkOrderCommandService {
           manager,
           tracker,
         );
-
-        const aggregate = await this.workOrders.findForClientDocuments(id, manager);
-        const built = this.payloads.build(NotificationType.DELIVERY, aggregate!, photoEntities);
-        await this.notifications.enqueue(
-          {
-            workOrderId: id,
-            type: NotificationType.DELIVERY,
-            trigger: NotificationTrigger.AUTOMATIC,
-            requestedBy: actor.id,
-            ...built,
-          },
-          manager,
-        );
       });
-      this.notifications.signalEnqueued();
       this.metrics.workOrderStatusChanges.inc({ to_status: WorkOrderStatus.ENTREGADO });
       this.logger.log({ workOrderId: id, actor: actor.id }, 'Entrega registrada');
     } catch (error) {

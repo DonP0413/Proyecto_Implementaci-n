@@ -16,14 +16,14 @@ export class AttachmentEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'work_order_id', type: 'uuid' })
+  @Column({ name: 'work_order_id', type: 'varchar', length: 36 })
   workOrderId: string;
 
   @ManyToOne(() => WorkOrderEntity, (wo) => wo.attachments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'work_order_id' })
   workOrder: Relation<WorkOrderEntity>;
 
-  @Column({ name: 'technical_log_id', type: 'uuid', nullable: true })
+  @Column({ name: 'technical_log_id', type: 'varchar', length: 36, nullable: true })
   technicalLogId: string | null;
 
   @Column({ type: 'varchar', length: 30 })
@@ -44,9 +44,9 @@ export class AttachmentEntity {
   @Column({ name: 'size_bytes', type: 'integer' })
   sizeBytes: number;
 
-  @Column({ name: 'uploaded_by', type: 'uuid', nullable: true })
+  @Column({ name: 'uploaded_by', type: 'varchar', length: 36, nullable: true })
   uploadedById: string | null;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
   createdAt: Date;
 }

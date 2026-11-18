@@ -4,13 +4,12 @@
  * datos y existe un cliente con el mismo documento, se reutiliza y se
  * actualizan sus datos de contacto; si no, se crea uno nuevo.
  */
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EntityManager } from 'typeorm';
 import { InvalidInputError, ConflictError, NotFoundError } from '../../common/errors/domain.errors';
 import { paginate, Paginated } from '../../common/pagination/pagination';
 import { todayLocalDate } from '../../common/time/local-date';
-import { NotificationsService } from '../notifications/application/notifications.service';
 import { ClientEntity } from './client.entity';
 import { ClientsRepository } from './clients.repository';
 import { ClientQueryDto, ClientResponseDto, CreateClientDto, UpdateClientDto } from './dto/client.dto';
@@ -20,7 +19,6 @@ export class ClientsService {
   constructor(
     private readonly clients: ClientsRepository,
     private readonly config: ConfigService,
-    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async search(query: ClientQueryDto): Promise<Paginated<ClientResponseDto>> {
@@ -48,12 +46,8 @@ export class ClientsService {
         throw new ConflictError('Ya existe un cliente con ese documento', 'CLIENT_DOCUMENT_TAKEN');
       }
     }
-    const emailChanged = dto.email !== undefined && dto.email !== client.email;
     Object.assign(client, this.toEntityData(dto));
     const saved = await this.clients.save(client);
-    if (emailChanged && this.notifications) {
-      await this.notifications.syncRecipientForClient(saved.id, saved.email);
-    }
     return ClientResponseDto.from(saved);
   }
 
@@ -88,11 +82,7 @@ export class ClientsService {
     return this.clients.save(this.clients.create(this.toNewEntityData(data), manager), manager);
   }
 
-  async updateForIntake(
-    id: string,
-    dto: UpdateClientDto,
-    manager: EntityManager,
-  ): Promise<ClientEntity> {
+  async updateForIntake(id: string, dto: UpdateClientDto, manager: EntityManager): Promise<ClientEntity> {
     const client = await this.clients.findById(id, manager);
     if (!client) throw new NotFoundError('Cliente', id);
     if (dto.documentId && dto.documentId !== client.documentId) {

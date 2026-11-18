@@ -92,8 +92,10 @@ export interface WorkOrderDetailDto extends WorkOrderSummaryDto {
   actions: {
     canEditIntake: boolean;
     canCreateQuotation: boolean;
-    canSendQuotation: boolean;
-    canNotifyReadyForPickup: boolean;
+    /** Hay una cotización registrada: se puede descargar su PDF. */
+    canDownloadQuotationPdf: boolean;
+    /** Listo para retirar o entregado: se puede descargar el PDF de entrega. */
+    canDownloadReadyPdf: boolean;
     canRegisterDelivery: boolean;
   };
   clientVisible: {

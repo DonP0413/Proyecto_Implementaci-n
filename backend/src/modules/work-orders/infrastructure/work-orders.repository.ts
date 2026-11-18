@@ -19,16 +19,21 @@ import {
 
 @Injectable()
 export class WorkOrdersRepository {
+  /** Consecutivo del ID de trabajo (tabla `sequences`; reemplaza al SEQUENCE de PostgreSQL). */
   async nextSequence(manager: EntityManager): Promise<number> {
-    const rows: Array<{ seq: string }> = await manager.query(`SELECT nextval('work_order_code_seq') AS seq`);
-    return Number(rows[0].seq);
+    const rows: Array<{ value: number }> = await manager.query(
+      `UPDATE sequences SET value = value + 1 WHERE name = 'work_order_code' RETURNING value`,
+    );
+    return Number(rows[0].value);
   }
 
-  /** Bloqueo pesimista (SELECT ... FOR UPDATE) para serializar cambios concurrentes sobre la misma orden. */
+  /**
+   * Lee la orden dentro de la transacción. En SQLite las transacciones de la
+   * aplicación ya se ejecutan de una en una (ver DatabaseModule), por lo que no
+   * hace falta SELECT ... FOR UPDATE.
+   */
   lockById(id: string, manager: EntityManager): Promise<WorkOrderEntity | null> {
-    return manager
-      .getRepository(WorkOrderEntity)
-      .findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+    return manager.getRepository(WorkOrderEntity).findOne({ where: { id } });
   }
 
   saveWorkOrder(entity: Partial<WorkOrderEntity>, manager: EntityManager): Promise<WorkOrderEntity> {
@@ -131,7 +136,7 @@ export class WorkOrdersRepository {
     });
   }
 
-  /** Carga el agregado con lo necesario para comprobantes y correos (sin el registro técnico interno). */
+  /** Carga el agregado con lo necesario para los PDF del cliente (sin el registro técnico interno). */
   findForClientDocuments(id: string, manager: EntityManager): Promise<WorkOrderEntity | null> {
     return manager.getRepository(WorkOrderEntity).findOne({
       where: { id },
@@ -140,8 +145,8 @@ export class WorkOrdersRepository {
         equipment: { equipmentType: true },
         receptionCondition: true,
         accessories: true,
-        quotations: true,
-        deliveryRecord: true,
+        quotations: { createdBy: true },
+        deliveryRecord: { deliveredBy: true },
         receivedBy: true,
       },
     });

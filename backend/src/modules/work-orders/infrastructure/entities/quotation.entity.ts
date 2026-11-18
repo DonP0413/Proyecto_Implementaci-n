@@ -17,7 +17,7 @@ export class QuotationEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'work_order_id', type: 'uuid' })
+  @Column({ name: 'work_order_id', type: 'varchar', length: 36 })
   workOrderId: string;
 
   @ManyToOne(() => WorkOrderEntity, (wo) => wo.quotations, { onDelete: 'CASCADE' })
@@ -33,16 +33,16 @@ export class QuotationEntity {
   @Column({ name: 'estimated_days', type: 'smallint', nullable: true })
   estimatedDays: number | null;
 
-  @Column({ name: 'created_by', type: 'uuid' })
+  @Column({ name: 'created_by', type: 'varchar', length: 36 })
   createdById: string;
 
   @ManyToOne(() => UserEntity)
   @JoinColumn({ name: 'created_by' })
   createdBy: Relation<UserEntity>;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
   createdAt: Date;
 
-  @Column({ name: 'notified_at', type: 'timestamptz', nullable: true })
+  @Column({ name: 'notified_at', type: 'datetime', nullable: true })
   notifiedAt: Date | null;
 }

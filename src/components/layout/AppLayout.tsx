@@ -27,7 +27,6 @@ export function AppLayout() {
           <NavLink to="/work-orders">Órdenes de trabajo</NavLink>
           {hasRole('RECEPCIONISTA') && <NavLink to="/work-orders/new">+ Registrar ingreso</NavLink>}
           <NavLink to="/clients">Clientes</NavLink>
-          {hasRole('RECEPCIONISTA', 'TECNICO') && <NavLink to="/notifications">Correos fallidos</NavLink>}
           {hasRole('ADMIN') && <NavLink to="/users">Usuarios</NavLink>}
         </nav>
         <div className="sidebar-footer">

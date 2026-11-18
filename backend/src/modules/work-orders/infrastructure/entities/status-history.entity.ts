@@ -6,10 +6,10 @@ import { WorkOrderEntity } from './work-order.entity';
 
 @Entity({ name: 'status_history' })
 export class StatusHistoryEntity {
-  @PrimaryGeneratedColumn({ type: 'bigint' })
-  id: string;
+  @PrimaryGeneratedColumn({ type: 'integer' })
+  id: number;
 
-  @Column({ name: 'work_order_id', type: 'uuid' })
+  @Column({ name: 'work_order_id', type: 'varchar', length: 36 })
   workOrderId: string;
 
   @ManyToOne(() => WorkOrderEntity, (wo) => wo.statusHistory, { onDelete: 'CASCADE' })
@@ -25,13 +25,13 @@ export class StatusHistoryEntity {
   @Column({ type: 'varchar', length: 500, nullable: true })
   note: string | null;
 
-  @Column({ name: 'changed_by', type: 'uuid', nullable: true })
+  @Column({ name: 'changed_by', type: 'varchar', length: 36, nullable: true })
   changedById: string | null;
 
   @ManyToOne(() => UserEntity, { nullable: true })
   @JoinColumn({ name: 'changed_by' })
   changedBy: Relation<UserEntity> | null;
 
-  @Column({ name: 'changed_at', type: 'timestamptz', default: () => 'now()' })
+  @Column({ name: 'changed_at', type: 'datetime', default: () => "(strftime('%Y-%m-%d %H:%M:%f', 'now'))" })
   changedAt: Date;
 }

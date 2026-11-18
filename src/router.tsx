@@ -5,7 +5,6 @@ import { LoginPage } from './features/auth/LoginPage';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { ClientsPage } from './features/clients/ClientsPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
-import { FailedNotificationsPage } from './features/notifications/FailedNotificationsPage';
 import { UsersPage } from './features/users/UsersPage';
 import { NewWorkOrderPage } from './features/work-orders/pages/NewWorkOrderPage';
 import { WorkOrderDetailPage } from './features/work-orders/pages/WorkOrderDetailPage';
@@ -33,14 +32,6 @@ export const router = createBrowserRouter([
       },
       { path: 'work-orders/:id', element: <WorkOrderDetailPage /> },
       { path: 'clients', element: <ClientsPage /> },
-      {
-        path: 'notifications',
-        element: (
-          <ProtectedRoute roles={['RECEPCIONISTA', 'TECNICO']}>
-            <FailedNotificationsPage />
-          </ProtectedRoute>
-        ),
-      },
       {
         path: 'users',
         element: (

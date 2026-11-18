@@ -12,8 +12,6 @@ import type {
   EquipmentMatch,
   EquipmentType,
   LoginResponse,
-  NotificationItem,
-  NotificationPreview,
   Paginated,
   TechnicalLog,
   UpdateWorkOrderIntakeRequest,
@@ -82,19 +80,13 @@ export const workOrdersApi = {
     form.append('file', file);
     return http.post<Attachment>(`/work-orders/${id}/attachments`, form).then((r) => r.data);
   },
-  notifications: (id: string) => http.get<NotificationItem[]>(`/work-orders/${id}/notifications`).then((r) => r.data),
-  sendQuotation: (id: string) =>
-    http.post<NotificationItem>(`/work-orders/${id}/notifications/quotation`).then((r) => r.data),
-  sendReadyForPickup: (id: string) =>
-    http.post<NotificationItem>(`/work-orders/${id}/notifications/ready-for-pickup`).then((r) => r.data),
 };
 
-export const notificationsApi = {
-  list: (status: 'FAILED' | 'PENDING' | 'SENT' = 'FAILED') =>
-    http.get<NotificationItem[]>('/notifications', { params: { status } }).then((r) => r.data),
-  preview: (id: string) => http.get<NotificationPreview>(`/notifications/${id}/preview`).then((r) => r.data),
-  retry: (id: string, recipientEmail?: string) =>
-    http.post<NotificationItem>(`/notifications/${id}/retry`, recipientEmail ? { recipientEmail } : {}).then((r) => r.data),
+/** Documentos PDF para el cliente (incluyen las políticas de garantía). */
+export const workOrderPdfPaths = {
+  reception: (id: string) => `/work-orders/${id}/receipt`,
+  quotation: (id: string) => `/work-orders/${id}/quotation-pdf`,
+  ready: (id: string) => `/work-orders/${id}/ready-pdf`,
 };
 
 export const clientsApi = {
@@ -118,6 +110,16 @@ export const usersApi = {
   update: (id: string, data: Partial<{ fullName: string; role: UserRole; isActive: boolean }>) =>
     http.patch<User>(`/users/${id}`, data).then((r) => r.data),
   resetPassword: (id: string, password: string) => http.put(`/users/${id}/password`, { password }),
+};
+
+/** Descarga un recurso protegido (requiere token) como blob: URL local + nombre de archivo sugerido. */
+export const fetchProtectedFile = async (path: string): Promise<{ url: string; filename: string }> => {
+  const response = await http.get<Blob>(path, { responseType: 'blob' });
+  const disposition = String(response.headers['content-disposition'] ?? '');
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  const plain = /filename="?([^";]+)"?/i.exec(disposition)?.[1];
+  const filename = encoded ? decodeURIComponent(encoded) : (plain ?? 'documento.pdf');
+  return { url: URL.createObjectURL(response.data), filename };
 };
 
 /** Descarga un recurso protegido (requiere token) y lo abre en una pestaña nueva. */

@@ -1,14 +1,18 @@
 /**
  * Objetivo: Repository del lado de LECTURA (Query side, CQRS ligero).
  * Consultas optimizadas para búsqueda (requerimiento 9) y vistas de
- * detalle; no modifican estado. Los filtros usan los índices definidos en
- * V1 (trigram para búsquedas parciales, compuesto status+received_at).
+ * detalle; no modifican estado. LIKE de SQLite no distingue mayúsculas
+ * (ASCII); el filtro de fechas se calcula en la zona horaria del negocio.
  */
 import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Brackets, DataSource } from 'typeorm';
+import { addDays, startOfLocalDay, toDbDatetime } from '../../../common/time/local-date';
 import { WorkOrderStatus } from '../domain/work-order-status';
+
+/** SQLite no tiene carácter de escape por defecto en LIKE. */
+const ESC = "ESCAPE '\\'";
 import { AttachmentEntity, WorkOrderEntity } from './entities';
 
 export interface WorkOrderSearchFilters {
@@ -51,49 +55,45 @@ export class WorkOrdersQueryRepository {
       qb.andWhere(
         new Brackets((w) =>
           w
-            .where('wo.code ILIKE :q', { q: like(filters.q!) })
-            .orWhere('c.fullName ILIKE :q')
-            .orWhere('c.email ILIKE :q')
-            .orWhere('c.documentId ILIKE :q')
-            .orWhere('e.serialNumber ILIKE :q')
-            .orWhere('e.model ILIKE :q'),
+            .where(`wo.code LIKE :q ${ESC}`, { q: like(filters.q!) })
+            .orWhere(`c.fullName LIKE :q ${ESC}`)
+            .orWhere(`c.email LIKE :q ${ESC}`)
+            .orWhere(`c.documentId LIKE :q ${ESC}`)
+            .orWhere(`e.serialNumber LIKE :q ${ESC}`)
+            .orWhere(`e.model LIKE :q ${ESC}`),
         ),
       );
     }
-    if (filters.code) qb.andWhere('wo.code ILIKE :code', { code: like(filters.code) });
+    if (filters.code) qb.andWhere(`wo.code LIKE :code ${ESC}`, { code: like(filters.code) });
     if (filters.client) {
       qb.andWhere(
         new Brackets((w) =>
           w
-            .where('c.fullName ILIKE :client', { client: like(filters.client!) })
-            .orWhere('c.email ILIKE :client')
-            .orWhere('c.documentId ILIKE :client'),
+            .where(`c.fullName LIKE :client ${ESC}`, { client: like(filters.client!) })
+            .orWhere(`c.email LIKE :client ${ESC}`)
+            .orWhere(`c.documentId LIKE :client ${ESC}`),
         ),
       );
     }
     if (filters.clientId) qb.andWhere('wo.clientId = :clientId', { clientId: filters.clientId });
-    if (filters.equipmentId) qb.andWhere('wo.equipmentId = :equipmentId', { equipmentId: filters.equipmentId });
-    if (filters.serial) qb.andWhere('e.serialNumber ILIKE :serial', { serial: like(filters.serial) });
+    if (filters.equipmentId)
+      qb.andWhere('wo.equipmentId = :equipmentId', { equipmentId: filters.equipmentId });
+    if (filters.serial) qb.andWhere(`e.serialNumber LIKE :serial ${ESC}`, { serial: like(filters.serial) });
     if (filters.status?.length) qb.andWhere('wo.status IN (:...status)', { status: filters.status });
     if (filters.technicianId) {
       qb.andWhere('wo.assignedTechnicianId = :technicianId', { technicianId: filters.technicianId });
     }
     const timeZone = this.config?.get<string>('workOrders.timezone') ?? 'America/Guayaquil';
     if (filters.dateFrom) {
-      qb.andWhere('wo.receivedAt >= (CAST(:dateFrom AS timestamp) AT TIME ZONE :timeZone)', {
-        dateFrom: filters.dateFrom.slice(0, 10),
-        timeZone,
+      qb.andWhere('wo.receivedAt >= :dateFrom', {
+        dateFrom: toDbDatetime(startOfLocalDay(filters.dateFrom.slice(0, 10), timeZone)),
       });
     }
     if (filters.dateTo) {
       // dateTo inclusivo: se compara contra el inicio del día siguiente en la zona horaria del negocio
-      qb.andWhere(
-        `wo.receivedAt < ((CAST(:dateTo AS timestamp) + INTERVAL '1 day') AT TIME ZONE :timeZone)`,
-        {
-          dateTo: filters.dateTo.slice(0, 10),
-          timeZone,
-        },
-      );
+      qb.andWhere('wo.receivedAt < :dateTo', {
+        dateTo: toDbDatetime(startOfLocalDay(addDays(filters.dateTo.slice(0, 10), 1), timeZone)),
+      });
     }
     return qb.getManyAndCount();
   }
@@ -138,8 +138,8 @@ export class WorkOrdersQueryRepository {
   }
 
   async countByStatus(): Promise<Record<string, number>> {
-    const rows: Array<{ status: string; total: string }> = await this.dataSource.query(
-      'SELECT status, count(*)::int AS total FROM work_orders GROUP BY status',
+    const rows: Array<{ status: string; total: number }> = await this.dataSource.query(
+      'SELECT status, count(*) AS total FROM work_orders GROUP BY status',
     );
     return Object.fromEntries(rows.map((row) => [row.status, Number(row.total)]));
   }

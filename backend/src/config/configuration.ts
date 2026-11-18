@@ -26,42 +26,25 @@ export const configuration = () => ({
   appPublicUrl: process.env.APP_PUBLIC_URL ?? 'http://localhost:5173',
 
   database: {
-    host: process.env.DB_HOST ?? 'localhost',
-    port: int(process.env.DB_PORT, 5432),
-    user: process.env.DB_USER ?? 'pintotech',
-    password: process.env.DB_PASSWORD ?? '',
-    name: process.env.DB_NAME ?? 'pintotech',
-    ssl: bool(process.env.DB_SSL, false),
-    poolMax: int(process.env.DB_POOL_MAX, 10),
+    /** Archivo SQLite local. Relativo a la carpeta desde la que se inicia el backend. */
+    path: path.resolve(process.cwd(), process.env.DB_PATH ?? path.join('data', 'pintotech.sqlite')),
     logging: bool(process.env.DB_LOGGING, false),
     migrationsDir: process.env.MIGRATIONS_DIR ?? path.resolve(process.cwd(), '..', 'database', 'migrations'),
+  },
+
+  /** Carpeta con la SPA compilada (npm run build en la raíz). Si existe, el backend la sirve. */
+  frontendDist: process.env.FRONTEND_DIST ?? path.resolve(process.cwd(), '..', 'dist'),
+
+  /** Administrador inicial: se crea al arrancar si la base no tiene usuarios. */
+  admin: {
+    email: process.env.ADMIN_EMAIL,
+    password: process.env.ADMIN_PASSWORD,
+    name: process.env.ADMIN_NAME ?? 'Administrador',
   },
 
   jwt: {
     secret: process.env.JWT_SECRET ?? '',
     expiresIn: process.env.JWT_EXPIRES_IN ?? '8h',
-  },
-
-  mail: {
-    driver: (process.env.MAIL_DRIVER ?? 'console') as 'console' | 'mailgun',
-    from: process.env.MAIL_FROM ?? 'PINTOTECH <no-reply@example.com>',
-    replyTo: process.env.MAIL_REPLY_TO ?? '',
-    mailgun: {
-      apiKey: process.env.MAILGUN_API_KEY ?? '',
-      domain: process.env.MAILGUN_DOMAIN ?? '',
-      region: (process.env.MAILGUN_REGION ?? 'us') as 'us' | 'eu',
-      timeoutMs: int(process.env.MAILGUN_TIMEOUT_MS, 15000),
-    },
-  },
-
-  notifications: {
-    workerEnabled: bool(process.env.NOTIFICATIONS_WORKER_ENABLED, true),
-    pollIntervalMs: int(process.env.NOTIFICATIONS_POLL_INTERVAL_MS, 15000),
-    batchSize: int(process.env.NOTIFICATIONS_BATCH_SIZE, 10),
-    maxAttempts: int(process.env.NOTIFICATIONS_MAX_ATTEMPTS, 5),
-    baseDelaySeconds: int(process.env.NOTIFICATIONS_BASE_DELAY_SECONDS, 30),
-    stuckAfterMinutes: int(process.env.NOTIFICATIONS_STUCK_AFTER_MINUTES, 10),
-    maxEmailPhotos: int(process.env.NOTIFICATIONS_MAX_EMAIL_PHOTOS, 3),
   },
 
   storage: {

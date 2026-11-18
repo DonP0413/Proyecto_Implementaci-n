@@ -15,8 +15,6 @@ export type WorkOrderStatus =
 export type PowerStatus = 'SI' | 'NO' | 'NO_PROBADO';
 export type PhysicalCondition = 'BUENO' | 'REGULAR' | 'MALO';
 export type AttachmentCategory = 'RECEPTION_PHOTO' | 'DELIVERY_PHOTO' | 'TECHNICAL_DOCUMENT' | 'RECEIPT_PDF';
-export type NotificationType = 'RECEPTION' | 'QUOTATION' | 'READY_FOR_PICKUP' | 'DELIVERY';
-export type NotificationStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
 
 export interface Paginated<T> {
   items: T[];
@@ -174,8 +172,8 @@ export interface WorkOrderDetail extends WorkOrderSummary {
   actions: {
     canEditIntake?: boolean;
     canCreateQuotation: boolean;
-    canSendQuotation: boolean;
-    canNotifyReadyForPickup: boolean;
+    canDownloadQuotationPdf: boolean;
+    canDownloadReadyPdf: boolean;
     canRegisterDelivery: boolean;
   };
   clientVisible: {
@@ -290,32 +288,4 @@ export interface WorkOrderFilters {
 export interface WorkOrderStats {
   total: number;
   byStatus: Array<{ status: WorkOrderStatus; label: string; count: number }>;
-}
-
-export interface NotificationItem {
-  id: string;
-  workOrderId: string;
-  workOrderCode?: string | null;
-  type: NotificationType;
-  typeLabel: string;
-  trigger: 'AUTOMATIC' | 'MANUAL';
-  recipientEmail: string;
-  subject: string;
-  status: NotificationStatus;
-  attempts: number;
-  maxAttempts: number;
-  lastError: string | null;
-  sentAt: string | null;
-  nextAttemptAt: string;
-  createdAt: string;
-}
-
-export interface NotificationPreview {
-  id: string;
-  subject: string;
-  recipientEmail: string;
-  typeLabel: string;
-  status: NotificationStatus;
-  html: string;
-  text: string;
 }

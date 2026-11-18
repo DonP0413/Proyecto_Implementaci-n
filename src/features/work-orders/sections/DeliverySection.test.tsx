@@ -15,7 +15,7 @@ const wo = {
   id: 'wo1',
   code: 'PT-2026-000010',
   client: { id: 'c1', fullName: 'Ana Pérez', email: 'ana@example.com', phone: '0991234567', documentId: '1718123456' },
-  actions: { canRegisterDelivery: true },
+  actions: { canRegisterDelivery: true, canDownloadReadyPdf: true },
   clientVisible: {
     delivery: null,
     quotations: [{ id: 'q1', amount: 50 }],
@@ -63,7 +63,7 @@ describe('DeliverySection — editar, revisar y confirmar', () => {
     expect(screen.getByText('¿Está seguro de finalizar la entrega?')).toBeInTheDocument();
     expect(screen.getByText('Esta acción no se puede deshacer.')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Sí, finalizar y notificar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Sí, finalizar entrega/ }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
     expect(mutateAsync.mock.calls[0][0].data).toMatchObject({ workSummary: 'Cambio de pantalla', amountCharged: 60, returnedAccessoryIds: ['a1'] });
   });

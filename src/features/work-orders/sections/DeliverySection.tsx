@@ -1,9 +1,9 @@
 /**
  * Objetivo: registro de entrega con la información VISIBLE para el cliente
- * (RF-07) y disparo de la notificación automática de entrega (RF-08).
+ * (RF-07) y PDF "listo para entregar" / comprobante de entrega con las
+ * políticas de garantía.
  *
- * Flujo en tres pasos, porque la entrega cierra la orden y envía un correo
- * que no se puede deshacer:
+ * Flujo en tres pasos, porque la entrega cierra la orden y no se puede deshacer:
  *   1. Editar   : se completan los datos de la entrega.
  *   2. Revisar  : resumen de TODO lo que verá el cliente, con avisos (accesorios
  *                 no devueltos, valor distinto a la cotización) y opción de
@@ -14,7 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { clientsApi } from '../../../api/endpoints';
+import { clientsApi, workOrderPdfPaths } from '../../../api/endpoints';
 import type { WorkOrderDetail } from '../../../api/types';
 import { Button } from '../../../components/ui/Button';
 import { Alert, Card, DataRow, Spinner } from '../../../components/ui/Feedback';
@@ -27,6 +27,7 @@ import { toast } from '../../../stores/toastStore';
 import { ClientForm } from '../../clients/ClientForm';
 import { AttachmentGallery } from '../components/AttachmentGallery';
 import { FilePicker } from '../components/FilePicker';
+import { PdfButton } from '../components/PdfButton';
 import { MAX_FILE_MB, STATUS_LABELS } from '../constants';
 import { useRegisterDelivery, workOrderKeys } from '../hooks';
 import { deliverySchema, parseAmountInput, type DeliveryFormValues } from '../schemas';
@@ -76,7 +77,7 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
     if (!values) return;
     try {
       await registerDelivery.mutateAsync({ data: emptyToUndefined(values), photo: photo[0] });
-      toast.success('Entrega registrada. Se enviará la confirmación al cliente.');
+      toast.success('Entrega registrada. Genere el comprobante de entrega en PDF para el cliente.');
     } catch (e) {
       toast.error(getErrorMessage(e));
       setStep('edit');
@@ -88,7 +89,14 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
   if (delivery) {
     return (
       <div className="grid-2">
-        <Card title="Entrega registrada">
+        <Card
+          title="Entrega registrada"
+          actions={
+            <PdfButton size="sm" variant="primary" path={workOrderPdfPaths.ready(wo.id)}>
+              Comprobante de entrega (PDF)
+            </PdfButton>
+          }
+        >
           <dl className="data-list">
             <DataRow label="Fecha" value={formatDateTime(delivery.deliveredAt)} />
             <DataRow label="Valor cobrado" value={formatMoney(delivery.amountCharged)} />
@@ -132,6 +140,17 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
 
   return (
     <>
+      <Alert kind="success">
+        <div className="review-head">
+          <span>
+            <strong>Equipo listo para entregar.</strong> Genere el PDF para el cliente con el servicio, el valor a cancelar y las
+            políticas de garantía.
+          </span>
+          <PdfButton variant="primary" path={workOrderPdfPaths.ready(wo.id)} disabled={!wo.actions.canDownloadReadyPdf}>
+            Generar PDF listo para entregar
+          </PdfButton>
+        </div>
+      </Alert>
       <ol className="steps" aria-label="Pasos de la entrega">
         <li className={step === 'edit' ? 'active' : 'done'}>1. Datos de la entrega</li>
         <li className={step === 'review' ? 'active' : ''}>2. Revisar y confirmar</li>
@@ -140,7 +159,7 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
       {step === 'edit' && (
         <Card title="Registrar entrega al cliente">
           <Alert kind="info">
-            Esta información es visible para el cliente y se enviará por correo. Antes de finalizar podrá revisarla y corregirla.
+            Esta información es visible para el cliente y aparecerá en el comprobante de entrega (PDF). Antes de finalizar podrá revisarla y corregirla.
           </Alert>
           <form onSubmit={handleSubmit(review)} noValidate className="grid-2">
             <Textarea
@@ -202,14 +221,14 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
       {step === 'review' && values && (
         <Card title="Revise la entrega antes de finalizar">
           <Alert kind="warning">
-            Al finalizar, la orden <strong>{wo.code}</strong> quedará <strong>Entregada</strong> (no se puede reabrir) y el cliente recibirá
-            este resumen por correo. Verifique que todo esté correcto.
+            Al finalizar, la orden <strong>{wo.code}</strong> quedará <strong>Entregada</strong> (no se puede reabrir) y este resumen
+            aparecerá en el comprobante de entrega (PDF). Verifique que todo esté correcto.
           </Alert>
 
           <div className="grid-2">
             <section>
               <div className="review-head">
-                <h3 className="subheading">Cliente y destino del correo</h3>
+                <h3 className="subheading">Cliente</h3>
                 <Button size="sm" variant="ghost" onClick={() => setEditingClient(true)}>
                   Editar datos del cliente
                 </Button>
@@ -278,7 +297,7 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
       <ConfirmDialog
         open={confirming}
         title="¿Está seguro de finalizar la entrega?"
-        confirmLabel="Sí, finalizar y notificar"
+        confirmLabel="Sí, finalizar entrega"
         cancelLabel="No, volver a revisar"
         tone="success"
         loading={registerDelivery.isPending}
@@ -287,8 +306,8 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
         message={
           <>
             <p>
-              La orden <strong>{wo.code}</strong> se cerrará como <strong>Entregado</strong> por <strong>{formatMoney(values?.amountCharged)}</strong> y
-              se enviará la confirmación a <strong>{wo.client.email}</strong>.
+              La orden <strong>{wo.code}</strong> se cerrará como <strong>Entregado</strong> por <strong>{formatMoney(values?.amountCharged)}</strong>.
+              Luego podrá generar el comprobante de entrega en PDF.
             </p>
             <p className="error-text">Esta acción no se puede deshacer.</p>
           </>

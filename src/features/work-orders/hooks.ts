@@ -12,7 +12,6 @@ export const workOrderKeys = {
   list: (filters: WorkOrderFilters) => ['work-orders', 'list', filters] as const,
   stats: ['work-orders', 'stats'] as const,
   detail: (id: string) => ['work-orders', 'detail', id] as const,
-  notifications: (id: string) => ['work-orders', 'notifications', id] as const,
 };
 
 export const useWorkOrders = (filters: WorkOrderFilters) =>
@@ -22,16 +21,6 @@ export const useWorkOrderStats = () => useQuery({ queryKey: workOrderKeys.stats,
 
 export const useWorkOrder = (id: string) =>
   useQuery({ queryKey: workOrderKeys.detail(id), queryFn: () => workOrdersApi.detail(id), enabled: !!id });
-
-export const useWorkOrderNotifications = (id: string) =>
-  useQuery({
-    queryKey: workOrderKeys.notifications(id),
-    queryFn: () => workOrdersApi.notifications(id),
-    enabled: !!id,
-    // Mientras haya correos pendientes, refrescar rápido para reflejar envíos o rechazos de inmediato
-    refetchInterval: (query) =>
-      query.state.data?.some((n) => n.status === 'PENDING' || n.status === 'SENDING') ? 1500 : false,
-  });
 
 export const useEquipmentTypes = () =>
   useQuery({ queryKey: ['equipment-types'], queryFn: catalogApi.equipmentTypes, staleTime: 10 * 60_000 });
@@ -55,7 +44,6 @@ const useDetailUpdater = (id: string) => {
     else void queryClient.invalidateQueries({ queryKey: workOrderKeys.detail(id) });
     void queryClient.invalidateQueries({ queryKey: ['work-orders', 'list'] });
     void queryClient.invalidateQueries({ queryKey: workOrderKeys.stats });
-    void queryClient.invalidateQueries({ queryKey: workOrderKeys.notifications(id) });
   };
 };
 
@@ -122,14 +110,4 @@ export const useUploadAttachment = (id: string) => {
       workOrdersApi.uploadAttachment(id, category, file),
     onSuccess: () => update(),
   });
-};
-
-export const useSendQuotation = (id: string) => {
-  const update = useDetailUpdater(id);
-  return useMutation({ mutationFn: () => workOrdersApi.sendQuotation(id), onSuccess: () => update() });
-};
-
-export const useSendReadyForPickup = (id: string) => {
-  const update = useDetailUpdater(id);
-  return useMutation({ mutationFn: () => workOrdersApi.sendReadyForPickup(id), onSuccess: () => update() });
 };

@@ -4,6 +4,9 @@
  * logger estructurado y apagado ordenado (SIGTERM en Docker).
  */
 import 'reflect-metadata';
+import { existsSync } from 'node:fs';
+import * as path from 'node:path';
+import type { NextFunction, Request, Response } from 'express';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -16,9 +19,19 @@ import { AppModule } from './app.module';
 export const configureApp = (app: NestExpressApplication): void => {
   const config = app.get(ConfigService);
 
-  app.set('trust proxy', 1); // detrás de Nginx: IP real para rate limiting
   app.disable('x-powered-by');
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          // Fotos y PDF protegidos se muestran como blob: tras descargarlos con el token.
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          // App local por http://localhost: no forzar https.
+          upgradeInsecureRequests: null,
+        },
+      },
+    }),
+  );
   app.enableCors({
     origin: config.get<string[]>('corsOrigins'),
     credentials: false,
@@ -43,10 +56,28 @@ export const configureApp = (app: NestExpressApplication): void => {
   app.enableShutdownHooks();
 };
 
+/**
+ * Sirve la SPA compilada (carpeta dist de la raíz) desde el mismo puerto que
+ * la API: la aplicación local queda en un solo proceso (ver iniciar.bat).
+ */
+const serveFrontend = (app: NestExpressApplication): string | null => {
+  const dist = app.get(ConfigService).get<string>('frontendDist');
+  if (!dist || !existsSync(path.join(dist, 'index.html'))) return null;
+  app.useStaticAssets(dist, { index: false });
+  const indexHtml = path.join(dist, 'index.html');
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const isApi = /^\/(api|health|metrics)(\/|$)/.test(req.path);
+    if (req.method !== 'GET' || isApi || !req.accepts('html')) return next();
+    res.sendFile(indexHtml);
+  });
+  return dist;
+};
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   configureApp(app);
+  const frontendDist = serveFrontend(app);
 
   const config = app.get(ConfigService);
   if (config.get<boolean>('swaggerEnabled')) {
@@ -63,8 +94,12 @@ async function bootstrap(): Promise<void> {
   }
 
   const port = config.get<number>('port') ?? 3000;
-  await app.listen(port, '0.0.0.0');
+  // Sólo en este equipo: la aplicación local no se expone a la red.
+  await app.listen(port, process.env.HOST ?? '127.0.0.1');
   app.get(Logger).log(`PINTOTECH API escuchando en el puerto ${port}`, 'Bootstrap');
+  if (frontendDist) {
+    app.get(Logger).log(`Aplicación disponible en http://localhost:${port}`, 'Bootstrap');
+  }
 }
 
 if (require.main === module) {
