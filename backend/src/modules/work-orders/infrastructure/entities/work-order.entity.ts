@@ -36,14 +36,14 @@ export class WorkOrderEntity {
   @Column({ type: 'varchar', length: 20 })
   code: string;
 
-  @Column({ name: 'client_id', type: 'uuid' })
+  @Column({ name: 'client_id', type: 'varchar', length: 36 })
   clientId: string;
 
   @ManyToOne(() => ClientEntity, { nullable: false })
   @JoinColumn({ name: 'client_id' })
   client: Relation<ClientEntity>;
 
-  @Column({ name: 'equipment_id', type: 'uuid' })
+  @Column({ name: 'equipment_id', type: 'varchar', length: 36 })
   equipmentId: string;
 
   @ManyToOne(() => EquipmentEntity, { nullable: false })
@@ -56,20 +56,20 @@ export class WorkOrderEntity {
   @Column({ name: 'reported_issue', type: 'text' })
   reportedIssue: string;
 
-  @Column({ name: 'specs_snapshot', type: 'jsonb' })
+  @Column({ name: 'specs_snapshot', type: 'simple-json' })
   specsSnapshot: Record<string, string>;
 
-  @Column({ name: 'received_at', type: 'timestamptz' })
+  @Column({ name: 'received_at', type: 'datetime' })
   receivedAt: Date;
 
-  @Column({ name: 'received_by', type: 'uuid' })
+  @Column({ name: 'received_by', type: 'varchar', length: 36 })
   receivedById: string;
 
   @ManyToOne(() => UserEntity, { nullable: false })
   @JoinColumn({ name: 'received_by' })
   receivedBy: Relation<UserEntity>;
 
-  @Column({ name: 'assigned_technician_id', type: 'uuid', nullable: true })
+  @Column({ name: 'assigned_technician_id', type: 'varchar', length: 36, nullable: true })
   assignedTechnicianId: string | null;
 
   @ManyToOne(() => UserEntity, { nullable: true })
@@ -79,13 +79,13 @@ export class WorkOrderEntity {
   @Column({ name: 'estimated_delivery_date', type: 'date', nullable: true })
   estimatedDeliveryDate: string | null;
 
-  @Column({ name: 'delivered_at', type: 'timestamptz', nullable: true })
+  @Column({ name: 'delivered_at', type: 'datetime', nullable: true })
   deliveredAt: Date | null;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'datetime' })
   updatedAt: Date;
 
   @OneToOne(() => ReceptionConditionEntity, (rc) => rc.workOrder)

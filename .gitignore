@@ -15,7 +15,12 @@ coverage/
 !.env.example
 !**/.env.example
 
-# Archivos subidos y respaldos locales
+# Base de datos SQLite local, archivos subidos y respaldos locales
+backend/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 backend/storage/
 backend/storage-e2e/
 /storage/
@@ -40,6 +45,7 @@ desktop.ini
 # Paquetes de entrega por integrante (no se versionan)
 entregas/
 *.zip
+*.rar
 
 # Archivos Markdown (no se versionan)
 *.md

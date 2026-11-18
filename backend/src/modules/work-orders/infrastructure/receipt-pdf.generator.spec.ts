@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { WARRANTY_POLICIES } from '../domain/warranty-policies';
 import { ReceiptPdfGenerator } from './receipt-pdf.generator';
 
 describe('ReceiptPdfGenerator', () => {
@@ -67,8 +68,8 @@ describe('ReceiptPdfGenerator', () => {
 
     /** Registra dónde se dibujó la foto y en qué altura se escribe cada texto. */
     const capture = () => {
-      const images: Array<{ y: number; height: number; pageBottom: number }> = [];
-      const texts: Array<{ y: number; text: string }> = [];
+      const images: Array<{ y: number; height: number; pageBottom: number; page: unknown }> = [];
+      const texts: Array<{ y: number; text: string; page: unknown }> = [];
       const originalImage = PDFDocument.prototype.image;
       const originalText = PDFDocument.prototype.text;
       const imageSpy = jest.spyOn(PDFDocument.prototype, 'image').mockImplementation(function (
@@ -76,7 +77,12 @@ describe('ReceiptPdfGenerator', () => {
         ...args: unknown[]
       ) {
         const [, , y, options] = args as [unknown, number, number, { height: number }];
-        images.push({ y, height: options.height, pageBottom: this.page.height - this.page.margins.bottom });
+        images.push({
+          y,
+          height: options.height,
+          pageBottom: this.page.height - this.page.margins.bottom,
+          page: this.page,
+        });
         return (originalImage as (...a: unknown[]) => PDFKit.PDFDocument).apply(this, args);
       });
       const textSpy = jest.spyOn(PDFDocument.prototype, 'text').mockImplementation(function (
@@ -84,23 +90,28 @@ describe('ReceiptPdfGenerator', () => {
         ...args: unknown[]
       ) {
         const y = typeof args[2] === 'number' ? args[2] : this.y;
-        texts.push({ y, text: String(args[0]) });
+        texts.push({ y, text: String(args[0]), page: this.page });
         return (originalText as (...a: unknown[]) => PDFKit.PDFDocument).apply(this, args);
       });
       return { images, texts, restore: () => (imageSpy.mockRestore(), textSpy.mockRestore()) };
     };
 
-    it('el aviso y las firmas se escriben debajo de la foto (no encima)', async () => {
+    it('el aviso, las políticas y las firmas se escriben debajo de la foto (no encima)', async () => {
       const { images, texts, restore } = capture();
       try {
         await new ReceiptPdfGenerator().generate(data(3));
         expect(images).toHaveLength(1);
         const imageBottom = images[0].y + images[0].height;
         const after = texts.filter((t) =>
-          /^(Conserve este comprobante|Firma del cliente|Recibido por PINTOTECH)/.test(t.text),
+          /^(Conserve este comprobante|POLÍTICAS DE GARANTÍA|Firma del cliente|Recibido por PINTOTECH)/.test(
+            t.text,
+          ),
         );
-        expect(after).toHaveLength(3);
-        after.forEach((t) => expect(t.y).toBeGreaterThanOrEqual(imageBottom));
+        expect(after).toHaveLength(4);
+        // En la misma página van debajo de la foto; si no caben, pasan a la siguiente.
+        after.forEach((t) => {
+          if (t.page === images[0].page) expect(t.y).toBeGreaterThanOrEqual(imageBottom);
+        });
       } finally {
         restore();
       }
@@ -115,6 +126,105 @@ describe('ReceiptPdfGenerator', () => {
       } finally {
         restore();
       }
+    });
+  });
+
+  describe('políticas de garantía y otros documentos', () => {
+    const base = {
+      company: { name: 'PINTOTECH' },
+      code: 'PT-2026-000009',
+      receivedAt: '7 de noviembre de 2026, 10:00',
+      client: { fullName: 'María Pérez', email: 'maria@example.com' },
+      equipment: { typeName: 'Laptop', brand: 'HP', model: 'Pavilion', specs: [] },
+      reportedIssue: 'No enciende',
+      accessories: [{ name: 'Cargador', quantity: 1 }],
+    };
+
+    const textsOf = async (render: () => Promise<Buffer>) => {
+      const texts: string[] = [];
+      const originalText = PDFDocument.prototype.text;
+      const spy = jest.spyOn(PDFDocument.prototype, 'text').mockImplementation(function (
+        this: PDFKit.PDFDocument,
+        ...args: unknown[]
+      ) {
+        texts.push(String(args[0]));
+        return (originalText as (...a: unknown[]) => PDFKit.PDFDocument).apply(this, args);
+      });
+      try {
+        const pdf = await render();
+        expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+      } finally {
+        spy.mockRestore();
+      }
+      return texts;
+    };
+
+    const expectPolicies = (texts: string[]) => {
+      expect(texts).toContain('POLÍTICAS DE GARANTÍA');
+      WARRANTY_POLICIES.forEach((policy) => expect(texts).toContain(`•  ${policy}`));
+    };
+
+    it('el comprobante de ingreso incluye las políticas', async () => {
+      const texts = await textsOf(() =>
+        new ReceiptPdfGenerator().generate({
+          ...base,
+          receivedBy: 'Ana',
+          reception: { powerStatus: 'Sí', physicalCondition: 'Bueno' },
+        }),
+      );
+      expect(texts).toContain('COMPROBANTE DE INGRESO DE EQUIPO');
+      expectPolicies(texts);
+    });
+
+    it('la cotización incluye valor, detalle y políticas', async () => {
+      const texts = await textsOf(() =>
+        new ReceiptPdfGenerator().generateQuotation({
+          ...base,
+          issuedAt: 'hoy',
+          quotation: {
+            amount: '$35,50',
+            description: 'Cambio de pantalla',
+            estimatedDays: 2,
+            createdAt: 'hoy',
+          },
+        }),
+      );
+      expect(texts).toContain('COTIZACIÓN DE REPARACIÓN');
+      expect(texts).toContain('VALOR TOTAL: $35,50');
+      expect(texts).toContain('Cambio de pantalla');
+      expectPolicies(texts);
+    });
+
+    it('listo para entregar incluye valor a cancelar y políticas', async () => {
+      const texts = await textsOf(() =>
+        new ReceiptPdfGenerator().generateReadyForPickup({
+          ...base,
+          issuedAt: 'hoy',
+          quotation: { amount: '$35,50', description: 'Cambio de pantalla' },
+        }),
+      );
+      expect(texts).toContain('EQUIPO LISTO PARA ENTREGAR');
+      expect(texts).toContain('VALOR A CANCELAR: $35,50');
+      expectPolicies(texts);
+    });
+
+    it('con la entrega registrada se emite como comprobante de entrega', async () => {
+      const texts = await textsOf(() =>
+        new ReceiptPdfGenerator().generateReadyForPickup({
+          ...base,
+          issuedAt: 'hoy',
+          delivery: {
+            deliveredAt: 'hoy',
+            workSummary: 'Se cambió la pantalla',
+            amountCharged: '$35,50',
+            returnCondition: 'Funcional',
+            receivedByName: 'María Pérez',
+          },
+        }),
+      );
+      expect(texts).toContain('COMPROBANTE DE ENTREGA DE EQUIPO');
+      expect(texts).toContain('VALOR COBRADO: $35,50');
+      expectPolicies(texts);
     });
   });
 });

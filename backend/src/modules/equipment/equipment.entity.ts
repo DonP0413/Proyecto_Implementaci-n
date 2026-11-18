@@ -17,7 +17,7 @@ export class EquipmentEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'client_id', type: 'uuid' })
+  @Column({ name: 'client_id', type: 'varchar', length: 36 })
   clientId: string;
 
   @ManyToOne(() => ClientEntity, { nullable: false })
@@ -40,12 +40,12 @@ export class EquipmentEntity {
   @Column({ name: 'serial_number', type: 'varchar', length: 80, nullable: true })
   serialNumber: string | null;
 
-  @Column({ name: 'technical_specs', type: 'jsonb', default: () => "'{}'::jsonb" })
+  @Column({ name: 'technical_specs', type: 'simple-json', default: '{}' })
   technicalSpecs: Record<string, string>;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'datetime' })
   updatedAt: Date;
 }

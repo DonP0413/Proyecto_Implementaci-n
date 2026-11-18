@@ -2,7 +2,7 @@
  * Objetivo: formulario de REGISTRO DE INGRESO (RF-01 y RF-02): cliente
  * (existente o nuevo), equipo con características dinámicas según el tipo,
  * estado de recepción, accesorios y fotografías. Al guardar, el backend
- * genera el comprobante (RF-03) y envía el correo de ingreso (RF-04).
+ * genera el comprobante de ingreso en PDF (RF-03).
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
@@ -98,9 +98,8 @@ export function NewWorkOrderPage() {
     setValue('equipment.technicalSpecs', {});
   }, [typeId, setValue]);
 
-  // Paso de confirmación: el registro genera el comprobante y envía un correo automático.
+  // Paso de confirmación: el registro genera el comprobante de ingreso (PDF).
   const [pendingValues, setPendingValues] = useState<NewWorkOrderFormValues | null>(null);
-  const recipient = pendingValues?.clientMode === 'new' ? pendingValues.client?.email : selectedClient?.email;
   const missingExistingDocument = clientMode === 'existing' && !!selectedClient && !selectedClient.documentId;
 
   const onValidSubmit = (values: NewWorkOrderFormValues) => {
@@ -117,7 +116,7 @@ export function NewWorkOrderPage() {
     setSubmitError(null);
     try {
       const created = await createWorkOrder.mutateAsync({ data: toCreateWorkOrderRequest(values), photos });
-      toast.success(`Orden ${created.code} registrada. Se enviará el correo de confirmación al cliente.`);
+      toast.success(`Orden ${created.code} registrada. Genere el PDF de ingreso para el cliente.`);
       navigate(`/work-orders/${created.id}`, { state: { justCreated: true } });
     } catch (e) {
       setSubmitError(getErrorMessage(e));
@@ -179,7 +178,7 @@ export function NewWorkOrderPage() {
           <div className="grid-3">
             <Input label="Nombre completo" required placeholder="Ej.: María Fernanda Pérez" error={errors.client?.fullName?.message} {...register('client.fullName')} />
             <Input label="Cédula / RUC" required placeholder="Ej.: 1718123456" error={errors.client?.documentId?.message} {...register('client.documentId')} />
-            <Input label="Correo electrónico" type="email" required placeholder="Ej.: maria.perez@gmail.com" hint="Aquí se enviarán las notificaciones" error={errors.client?.email?.message} {...register('client.email')} />
+            <Input label="Correo electrónico" type="email" required placeholder="Ej.: maria.perez@gmail.com" error={errors.client?.email?.message} {...register('client.email')} />
             <Input label="Teléfono" type="tel" placeholder="Ej.: 0991234567" error={errors.client?.phone?.message} {...register('client.phone')} />
             <Input label="Dirección" placeholder="Ej.: Av. Amazonas N34-12 y Naciones Unidas" error={errors.client?.address?.message} {...register('client.address')} />
           </div>
@@ -334,10 +333,10 @@ export function NewWorkOrderPage() {
         message={
           <>
             <p>
-              Se generará el <strong>comprobante de ingreso</strong> con un ID de trabajo único y se enviará automáticamente a{' '}
-              <strong>{recipient ?? 'el cliente'}</strong>.
+              Se generará el <strong>comprobante de ingreso (PDF)</strong> con un ID de trabajo único y las políticas de garantía, para
+              imprimir y entregar al cliente.
             </p>
-            <p>Revise que el correo del cliente, el equipo y el estado de recepción sean correctos. Sólo podrá corregir estos datos mientras la orden permanezca en estado Ingresado.</p>
+            <p>Revise que los datos del cliente, el equipo y el estado de recepción sean correctos. Sólo podrá corregir estos datos mientras la orden permanezca en estado Ingresado.</p>
           </>
         }
       />

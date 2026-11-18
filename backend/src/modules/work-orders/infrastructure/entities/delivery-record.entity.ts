@@ -6,7 +6,7 @@ import { WorkOrderEntity } from './work-order.entity';
 
 @Entity({ name: 'delivery_records' })
 export class DeliveryRecordEntity {
-  @PrimaryColumn({ name: 'work_order_id', type: 'uuid' })
+  @PrimaryColumn({ name: 'work_order_id', type: 'varchar', length: 36 })
   workOrderId: string;
 
   @OneToOne(() => WorkOrderEntity, (wo) => wo.deliveryRecord, { onDelete: 'CASCADE' })
@@ -37,13 +37,13 @@ export class DeliveryRecordEntity {
   @Column({ name: 'received_by_document', type: 'varchar', length: 20, nullable: true })
   receivedByDocument: string | null;
 
-  @Column({ name: 'delivered_by', type: 'uuid' })
+  @Column({ name: 'delivered_by', type: 'varchar', length: 36 })
   deliveredById: string;
 
   @ManyToOne(() => UserEntity)
   @JoinColumn({ name: 'delivered_by' })
   deliveredBy: Relation<UserEntity>;
 
-  @Column({ name: 'delivered_at', type: 'timestamptz' })
+  @Column({ name: 'delivered_at', type: 'datetime' })
   deliveredAt: Date;
 }

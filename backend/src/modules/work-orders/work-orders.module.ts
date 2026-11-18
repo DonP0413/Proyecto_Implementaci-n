@@ -9,14 +9,11 @@ import { MulterModule } from '@nestjs/platform-express';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClientsModule } from '../clients/clients.module';
 import { EquipmentModule } from '../equipment/equipment.module';
-import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { AttachmentsService } from './application/attachments.service';
-import { NotificationPayloadFactory } from './application/notification-payload.factory';
 import { ReceiptService } from './application/receipt.service';
 import { TechnicalLogsService } from './application/technical-logs.service';
 import { WorkOrderCommandService } from './application/work-order-command.service';
-import { WorkOrderNotificationsService } from './application/work-order-notifications.service';
 import { WorkOrderQueryService } from './application/work-order-query.service';
 import { WORK_ORDER_ENTITIES } from './infrastructure/entities';
 import { ReceiptPdfGenerator } from './infrastructure/receipt-pdf.generator';
@@ -43,7 +40,6 @@ import { WorkOrdersController } from './presentation/work-orders.controller';
     ClientsModule,
     EquipmentModule,
     UsersModule,
-    NotificationsModule,
   ],
   controllers: [WorkOrdersController, WorkOrderRecordsController],
   providers: [
@@ -51,12 +47,10 @@ import { WorkOrdersController } from './presentation/work-orders.controller';
     WorkOrdersQueryRepository,
     WorkOrderCommandService,
     WorkOrderQueryService,
-    WorkOrderNotificationsService,
     TechnicalLogsService,
     AttachmentsService,
     ReceiptService,
     ReceiptPdfGenerator,
-    NotificationPayloadFactory,
   ],
 })
 export class WorkOrdersModule {}

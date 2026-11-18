@@ -7,7 +7,7 @@ export class WorkOrderAccessoryEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'work_order_id', type: 'uuid' })
+  @Column({ name: 'work_order_id', type: 'varchar', length: 36 })
   workOrderId: string;
 
   @ManyToOne(() => WorkOrderEntity, (wo) => wo.accessories, { onDelete: 'CASCADE' })

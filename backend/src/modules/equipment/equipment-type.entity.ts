@@ -29,7 +29,7 @@ export const MAX_EXTRA_SPEC_NAME = 40;
 
 @Entity({ name: 'equipment_types' })
 export class EquipmentTypeEntity {
-  @PrimaryGeneratedColumn({ type: 'smallint' })
+  @PrimaryGeneratedColumn({ type: 'integer' })
   id: number;
 
   @Column({ type: 'varchar', length: 30 })
@@ -38,7 +38,7 @@ export class EquipmentTypeEntity {
   @Column({ type: 'varchar', length: 80 })
   name: string;
 
-  @Column({ name: 'spec_schema', type: 'jsonb' })
+  @Column({ name: 'spec_schema', type: 'simple-json' })
   specSchema: SpecField[];
 
   @Column({ name: 'is_active', type: 'boolean', default: true })

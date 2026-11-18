@@ -5,8 +5,6 @@ import { BusinessRuleError, InvalidInputError } from '../../../common/errors/dom
 import { ClientsService } from '../../clients/clients.service';
 import { EquipmentService } from '../../equipment/equipment.service';
 import { MetricsService } from '../../metrics/metrics.service';
-import { NotificationsService } from '../../notifications/application/notifications.service';
-import { NotificationTrigger, NotificationType } from '../../notifications/domain/notification.enums';
 import { UserRole } from '../../users/domain/user-role.enum';
 import { UsersService } from '../../users/users.service';
 import { WorkOrderStatus } from '../domain/work-order-status';
@@ -14,7 +12,6 @@ import { PhysicalCondition, PowerStatus } from '../domain/work-order.enums';
 import { WorkOrdersRepository } from '../infrastructure/work-orders.repository';
 import { AttachmentsService } from './attachments.service';
 import { CreateWorkOrderDto } from './dto/work-order-input.dto';
-import { NotificationPayloadFactory } from './notification-payload.factory';
 import { ReceiptService } from './receipt.service';
 import { WorkOrderCommandService } from './work-order-command.service';
 
@@ -57,18 +54,6 @@ describe('WorkOrderCommandService', () => {
     cleanup: jest.fn(),
   };
   const receipts = { generate: jest.fn().mockResolvedValue(Buffer.from('%PDF-')) };
-  const payloads = {
-    build: jest.fn().mockReturnValue({
-      subject: 'Recibimos',
-      recipientEmail: 'cliente@example.com',
-      payload: { data: {}, attachments: [] },
-    }),
-  };
-  const notifications = {
-    enqueue: jest.fn(),
-    signalEnqueued: jest.fn(),
-    syncRecipientForClient: jest.fn(),
-  };
   const config = { get: jest.fn((key: string) => (key === 'workOrders.codePrefix' ? 'PT' : undefined)) };
 
   const service = new WorkOrderCommandService(
@@ -79,8 +64,6 @@ describe('WorkOrderCommandService', () => {
     {} as UsersService,
     attachments as unknown as AttachmentsService,
     receipts as unknown as ReceiptService,
-    payloads as unknown as NotificationPayloadFactory,
-    notifications as unknown as NotificationsService,
     new MetricsService(),
     config as unknown as ConfigService,
   );
@@ -95,7 +78,7 @@ describe('WorkOrderCommandService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('registra el ingreso, genera el código, el comprobante y encola el correo automático', async () => {
+  it('registra el ingreso, genera el código y guarda el comprobante PDF', async () => {
     const result = await service.create(dto, [], actor);
 
     expect(result.code).toMatch(/^PT-\d{4}-000007$/);
@@ -106,11 +89,11 @@ describe('WorkOrderCommandService', () => {
       manager,
     );
     expect(receipts.generate).toHaveBeenCalled();
-    expect(notifications.enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ type: NotificationType.RECEPTION, trigger: NotificationTrigger.AUTOMATIC }),
+    expect(attachments.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'RECEIPT_PDF' }),
       manager,
+      expect.any(Array),
     );
-    expect(notifications.signalEnqueued).toHaveBeenCalledTimes(1);
   });
 
   it('usa la fecha de ingreso indicada (orden, código y cliente nuevo)', async () => {
@@ -153,21 +136,20 @@ describe('WorkOrderCommandService', () => {
     workOrders.saveReception.mockRejectedValueOnce(new Error('db down'));
     await expect(service.create(dto, [], actor)).rejects.toThrow('db down');
     expect(attachments.cleanup).toHaveBeenCalled();
-    expect(notifications.signalEnqueued).not.toHaveBeenCalled();
   });
 
   it('no permite marcar ENTREGADO con el cambio de estado genérico desde LISTO_PARA_RETIRAR', async () => {
     workOrders.lockById.mockResolvedValue({ id: 'wo1', status: WorkOrderStatus.LISTO_PARA_RETIRAR });
-    await expect(
-      service.changeStatus('wo1', { status: WorkOrderStatus.ENTREGADO }, actor),
-    ).rejects.toThrow('registre la entrega');
+    await expect(service.changeStatus('wo1', { status: WorkOrderStatus.ENTREGADO }, actor)).rejects.toThrow(
+      'registre la entrega',
+    );
   });
 
   it('no permite pasar directo de INGRESADO a ENTREGADO y muestra el siguiente estado permitido', async () => {
     workOrders.lockById.mockResolvedValue({ id: 'wo1', status: WorkOrderStatus.INGRESADO });
-    await expect(
-      service.changeStatus('wo1', { status: WorkOrderStatus.ENTREGADO }, actor),
-    ).rejects.toThrow('Siguiente estado permitido: "En revisión"');
+    await expect(service.changeStatus('wo1', { status: WorkOrderStatus.ENTREGADO }, actor)).rejects.toThrow(
+      'Siguiente estado permitido: "En revisión"',
+    );
   });
 
   it('valida la transición con la máquina de estados', async () => {

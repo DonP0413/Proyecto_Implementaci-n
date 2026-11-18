@@ -1,10 +1,11 @@
 /**
- * Objetivo: registrar cotizaciones, ver su historial y ENVIAR la cotización
- * vigente al cliente por correo con su botón (RF-06).
+ * Objetivo: registrar cotizaciones, ver su historial y generar el PDF de la
+ * cotización vigente (con las políticas de garantía) para entregar al cliente.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { workOrderPdfPaths } from '../../../api/endpoints';
 import type { WorkOrderDetail } from '../../../api/types';
 import { Button } from '../../../components/ui/Button';
 import { Alert, Card } from '../../../components/ui/Feedback';
@@ -14,16 +15,14 @@ import { getErrorMessage } from '../../../lib/errors';
 import { formatDateTime, formatMoney } from '../../../lib/format';
 import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../stores/toastStore';
-import { useCreateQuotation, useSendQuotation } from '../hooks';
+import { PdfButton } from '../components/PdfButton';
+import { useCreateQuotation } from '../hooks';
 import { quotationSchema, parseAmountInput, type QuotationFormValues } from '../schemas';
 
 export function QuotationSection({ wo }: { wo: WorkOrderDetail }) {
   const canQuote = useAuthStore((s) => s.hasRole('TECNICO', 'RECEPCIONISTA'));
   const createQuotation = useCreateQuotation(wo.id);
-  const sendQuotation = useSendQuotation(wo.id);
-  const [confirmSend, setConfirmSend] = useState(false);
   const [pendingQuote, setPendingQuote] = useState<QuotationFormValues | null>(null);
-  const latestQuotation = wo.clientVisible.quotations[0];
   const {
     register,
     handleSubmit,
@@ -34,21 +33,10 @@ export function QuotationSection({ wo }: { wo: WorkOrderDetail }) {
   const onSubmit = async (values: QuotationFormValues) => {
     try {
       await createQuotation.mutateAsync(values);
-      toast.success('Cotización registrada. Use "Enviar cotización" para notificar al cliente.');
+      toast.success('Cotización registrada. Use "Generar PDF de cotización" para entregarla al cliente.');
       reset();
     } catch (e) {
       toast.error(getErrorMessage(e));
-    }
-  };
-
-  const send = async () => {
-    try {
-      await sendQuotation.mutateAsync();
-      toast.success(`Correo con la cotización encolado para ${wo.client.email}`);
-    } catch (e) {
-      toast.error(getErrorMessage(e));
-    } finally {
-      setConfirmSend(false);
     }
   };
 
@@ -102,27 +90,17 @@ export function QuotationSection({ wo }: { wo: WorkOrderDetail }) {
                 <div className="quote-head">
                   <strong>{formatMoney(q.amount)}</strong>
                   {index === 0 && <span className="badge badge-orange">Vigente</span>}
-                  {q.notifiedAt ? (
-                    <span className="badge badge-green">Enviada {formatDateTime(q.notifiedAt)}</span>
-                  ) : (
-                    <span className="badge badge-gray">No enviada</span>
-                  )}
                 </div>
                 <p className="pre-wrap">{q.description}</p>
                 <small className="muted">
                   {q.estimatedDays ? `${q.estimatedDays} día(s) · ` : ''}
                   {q.createdBy?.fullName} · {formatDateTime(q.createdAt)}
                 </small>
-                {index === 0 && canQuote && (
+                {index === 0 && (
                   <div className="button-row quote-actions">
-                    <Button
-                      variant="primary"
-                      disabled={!wo.actions.canSendQuotation}
-                      title={wo.actions.canSendQuotation ? '' : 'Disponible en estado "Cotización generada"'}
-                      onClick={() => setConfirmSend(true)}
-                    >
-                      {q.notifiedAt ? 'Reenviar cotización' : 'Enviar cotización'}
-                    </Button>
+                    <PdfButton variant="primary" path={workOrderPdfPaths.quotation(wo.id)} disabled={!wo.actions.canDownloadQuotationPdf}>
+                      Generar PDF de cotización
+                    </PdfButton>
                   </div>
                 )}
               </li>
@@ -145,23 +123,8 @@ export function QuotationSection({ wo }: { wo: WorkOrderDetail }) {
               {pendingQuote?.estimatedDays ? ` con ${pendingQuote.estimatedDays} día(s) estimados` : ''} y la orden pasará a{' '}
               <strong>Cotización generada</strong>.
             </p>
-            <p>El correo al cliente NO se envía todavía: lo enviará después con el botón "Enviar cotización".</p>
+            <p>Después podrá generar el PDF de la cotización con el botón "Generar PDF de cotización".</p>
           </>
-        }
-      />
-
-      <ConfirmDialog
-        open={confirmSend}
-        title="¿Está seguro de enviar la cotización?"
-        confirmLabel="Sí, enviar correo"
-        loading={sendQuotation.isPending}
-        onCancel={() => setConfirmSend(false)}
-        onConfirm={send}
-        message={
-          <p>
-            Se enviará un correo a <strong>{wo.client.email}</strong>
-            {latestQuotation ? ` con la cotización de ${formatMoney(latestQuotation.amount)} solicitando su aprobación.` : '.'}
-          </p>
         }
       />
     </div>

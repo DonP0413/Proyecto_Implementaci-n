@@ -119,8 +119,10 @@ export class WorkOrderMapper {
         canCreateQuotation: [WorkOrderStatus.EN_REVISION, WorkOrderStatus.COTIZACION_GENERADA].includes(
           entity.status,
         ),
-        canSendQuotation: entity.status === WorkOrderStatus.COTIZACION_GENERADA && quotations.length > 0,
-        canNotifyReadyForPickup: entity.status === WorkOrderStatus.LISTO_PARA_RETIRAR,
+        canDownloadQuotationPdf: quotations.length > 0,
+        canDownloadReadyPdf: [WorkOrderStatus.LISTO_PARA_RETIRAR, WorkOrderStatus.ENTREGADO].includes(
+          entity.status,
+        ),
         canRegisterDelivery: entity.status === WorkOrderStatus.LISTO_PARA_RETIRAR,
       },
       clientVisible: {

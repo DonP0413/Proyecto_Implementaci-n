@@ -16,14 +16,14 @@ export class TechnicalLogEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'work_order_id', type: 'uuid' })
+  @Column({ name: 'work_order_id', type: 'varchar', length: 36 })
   workOrderId: string;
 
   @ManyToOne(() => WorkOrderEntity, (wo) => wo.technicalLogs, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'work_order_id' })
   workOrder: Relation<WorkOrderEntity>;
 
-  @Column({ name: 'author_id', type: 'uuid' })
+  @Column({ name: 'author_id', type: 'varchar', length: 36 })
   authorId: string;
 
   @ManyToOne(() => UserEntity)
@@ -45,6 +45,6 @@ export class TechnicalLogEntity {
   @Column({ type: 'text', nullable: true })
   observations: string | null;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
   createdAt: Date;
 }

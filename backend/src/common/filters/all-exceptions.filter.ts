@@ -19,15 +19,33 @@ interface ErrorBody {
   timestamp: string;
 }
 
-const PG_ERROR_MAP: Record<string, { status: number; code: string; message: string }> = {
-  '23505': { status: 409, code: 'DUPLICATE_VALUE', message: 'Ya existe un registro con esos datos' },
-  '23503': {
+/** Códigos de error de SQLite (better-sqlite3) que se traducen a respuestas 4xx. */
+const DB_ERROR_MAP: Record<string, { status: number; code: string; message: string }> = {
+  SQLITE_CONSTRAINT_UNIQUE: {
+    status: 409,
+    code: 'DUPLICATE_VALUE',
+    message: 'Ya existe un registro con esos datos',
+  },
+  SQLITE_CONSTRAINT_PRIMARYKEY: {
+    status: 409,
+    code: 'DUPLICATE_VALUE',
+    message: 'Ya existe un registro con esos datos',
+  },
+  SQLITE_CONSTRAINT_FOREIGNKEY: {
     status: 409,
     code: 'FOREIGN_KEY_VIOLATION',
     message: 'El registro está relacionado con otros datos',
   },
-  '23514': { status: 422, code: 'CHECK_VIOLATION', message: 'Los datos no cumplen las reglas de integridad' },
-  '22P02': { status: 400, code: 'INVALID_TEXT_REPRESENTATION', message: 'Formato de dato inválido' },
+  SQLITE_CONSTRAINT_CHECK: {
+    status: 422,
+    code: 'CHECK_VIOLATION',
+    message: 'Los datos no cumplen las reglas de integridad',
+  },
+  SQLITE_CONSTRAINT_NOTNULL: {
+    status: 422,
+    code: 'CHECK_VIOLATION',
+    message: 'Los datos no cumplen las reglas de integridad',
+  },
 };
 
 @Catch()
@@ -71,15 +89,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         body.message = rawMessage;
       }
     } else if (exception instanceof QueryFailedError) {
-      const pgCode = (
-        exception as QueryFailedError & { driverError?: { code?: string; constraint?: string } }
-      ).driverError;
-      const mapped = pgCode?.code ? PG_ERROR_MAP[pgCode.code] : undefined;
+      const driverError = (exception as QueryFailedError & { driverError?: { code?: string } }).driverError;
+      const mapped = driverError?.code ? DB_ERROR_MAP[driverError.code] : undefined;
       if (mapped) {
         body.statusCode = mapped.status;
         body.code = mapped.code;
         body.message = mapped.message;
-        body.details = pgCode?.constraint ? { constraint: pgCode.constraint } : undefined;
       }
     }
 

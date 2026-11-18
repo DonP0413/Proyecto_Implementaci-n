@@ -5,7 +5,7 @@ import { WorkOrderEntity } from './work-order.entity';
 
 @Entity({ name: 'reception_conditions' })
 export class ReceptionConditionEntity {
-  @PrimaryColumn({ name: 'work_order_id', type: 'uuid' })
+  @PrimaryColumn({ name: 'work_order_id', type: 'varchar', length: 36 })
   workOrderId: string;
 
   @OneToOne(() => WorkOrderEntity, (wo) => wo.receptionCondition, { onDelete: 'CASCADE' })
@@ -24,6 +24,6 @@ export class ReceptionConditionEntity {
   @Column({ name: 'functional_notes', type: 'text', nullable: true })
   functionalNotes: string | null;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
   createdAt: Date;
 }

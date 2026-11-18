@@ -23,6 +23,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
+  const [showRecovery, setShowRecovery] = useState(false);
   const {
     register,
     handleSubmit,
@@ -57,6 +58,21 @@ export function LoginPage() {
         <Button type="submit" loading={isSubmitting} className="btn-block">
           Ingresar
         </Button>
+        <button
+          type="button"
+          className="link-button"
+          aria-expanded={showRecovery}
+          onClick={() => setShowRecovery((open) => !open)}
+        >
+          ¿Olvidó su contraseña?
+        </button>
+        {showRecovery && (
+          <Alert kind="info">
+            <p>
+              Solicite al <strong>administrador</strong> que restablezca su contraseña desde la sección <strong>Usuarios</strong>.
+            </p>
+          </Alert>
+        )}
       </form>
     </div>
   );

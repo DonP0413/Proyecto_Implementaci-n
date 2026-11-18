@@ -1,22 +1,23 @@
 /**
- * Objetivo: prueba de integración end-to-end contra PostgreSQL real
- * (servicio `postgres` en GitHub Actions o `docker compose up postgres`).
+ * Objetivo: prueba de integración end-to-end contra una base SQLite temporal
+ * (ver setup-e2e.ts: migraciones y administrador se crean al iniciar la app).
  * Recorre el flujo completo: login -> ingreso -> revisión -> cotización ->
- * reparación -> listo -> entrega, verificando correos encolados.
+ * reparación -> listo -> entrega, descargando los 3 PDF para el cliente.
  */
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
-import * as bcrypt from 'bcryptjs';
-import * as path from 'node:path';
-import { Client } from 'pg';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { runMigrations } from '../src/infrastructure/database/migration-runner';
 import { configureApp } from '../src/main';
 
-const ADMIN = { email: 'e2e-admin@pintotech.test', password: 'E2eClave2026' };
+const ADMIN = { email: process.env.ADMIN_EMAIL!, password: process.env.ADMIN_PASSWORD! };
+
+const binaryParser = (res: request.Response, cb: (err: Error | null, body: Buffer) => void) => {
+  const chunks: Buffer[] = [];
+  (res as unknown as NodeJS.ReadableStream).on('data', (chunk: Buffer) => chunks.push(chunk));
+  (res as unknown as NodeJS.ReadableStream).on('end', () => cb(null, Buffer.concat(chunks)));
+};
 
 describe('Flujo de orden de trabajo (e2e)', () => {
   let app: NestExpressApplication;
@@ -24,22 +25,6 @@ describe('Flujo de orden de trabajo (e2e)', () => {
   let token: string;
 
   beforeAll(async () => {
-    const pg = new Client({
-      host: process.env.DB_HOST,
-      port: Number(process.env.DB_PORT ?? 5432),
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-    });
-    await pg.connect();
-    await runMigrations(pg, path.resolve(__dirname, '..', '..', 'database', 'migrations'));
-    await pg.query(
-      `INSERT INTO users (full_name, email, password_hash, role) VALUES ('E2E Admin', $1, $2, 'ADMIN')
-       ON CONFLICT DO NOTHING`,
-      [ADMIN.email, await bcrypt.hash(ADMIN.password, 4)],
-    );
-    await pg.end();
-
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication<NestExpressApplication>();
     configureApp(app);
@@ -98,8 +83,21 @@ describe('Flujo de orden de trabajo (e2e)', () => {
     const id = created.body.id as string;
     expect(created.body.code).toMatch(/^PT-\d{4}-\d{6}$/);
 
-    const receipt = await request(http).get(`/api/v1/work-orders/${id}/receipt`).set(auth).expect(200);
-    expect(receipt.headers['content-type']).toContain('application/pdf');
+    const pdf = async (kind: 'receipt' | 'quotation-pdf' | 'ready-pdf') => {
+      const res = await request(http)
+        .get(`/api/v1/work-orders/${id}/${kind}`)
+        .set(auth)
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+      expect(res.headers['content-type']).toContain('application/pdf');
+      expect((res.body as Buffer).subarray(0, 5).toString()).toBe('%PDF-');
+      return res;
+    };
+    await pdf('receipt');
+    // Sin cotización ni estado "Listo para retirar" los otros PDF no están disponibles
+    await request(http).get(`/api/v1/work-orders/${id}/quotation-pdf`).set(auth).expect(422);
+    await request(http).get(`/api/v1/work-orders/${id}/ready-pdf`).set(auth).expect(422);
 
     await request(http)
       .patch(`/api/v1/work-orders/${id}/status`)
@@ -111,7 +109,7 @@ describe('Flujo de orden de trabajo (e2e)', () => {
       .set(auth)
       .send({ amount: 35.5, description: 'Cambio de puerto de carga', estimatedDays: 2 })
       .expect(201);
-    await request(http).post(`/api/v1/work-orders/${id}/notifications/quotation`).set(auth).expect(202);
+    await pdf('quotation-pdf');
     await request(http)
       .patch(`/api/v1/work-orders/${id}/status`)
       .set(auth)
@@ -127,10 +125,8 @@ describe('Flujo de orden de trabajo (e2e)', () => {
       .set(auth)
       .send({ status: 'LISTO_PARA_RETIRAR' })
       .expect(200);
-    await request(http)
-      .post(`/api/v1/work-orders/${id}/notifications/ready-for-pickup`)
-      .set(auth)
-      .expect(202);
+    const ready = await pdf('ready-pdf');
+    expect(ready.headers['content-disposition']).toContain('listo-para-entregar');
 
     const delivered = await request(http)
       .post(`/api/v1/work-orders/${id}/delivery`)
@@ -149,23 +145,29 @@ describe('Flujo de orden de trabajo (e2e)', () => {
     expect(delivered.body.status).toBe('ENTREGADO');
     expect(delivered.body.internal.technicalLogs).toHaveLength(1);
 
-    const notifications = await request(http)
-      .get(`/api/v1/work-orders/${id}/notifications`)
-      .set(auth)
-      .expect(200);
-    const types2 = notifications.body.map((n: { type: string }) => n.type).sort();
-    expect(types2).toEqual(['DELIVERY', 'QUOTATION', 'READY_FOR_PICKUP', 'RECEPTION']);
+    const deliveryPdf = await pdf('ready-pdf');
+    expect(deliveryPdf.headers['content-disposition']).toContain('comprobante-entrega');
 
     const search = await request(http)
       .get(`/api/v1/work-orders?q=${created.body.code}`)
       .set(auth)
       .expect(200);
     expect(search.body.items[0].id).toBe(id);
-  });
 
-  it('no filtra el registro técnico en las notificaciones al cliente', async () => {
-    const ds = app.get(DataSource);
-    const rows: Array<{ payload: unknown }> = await ds.query('SELECT payload FROM notifications');
-    expect(JSON.stringify(rows)).not.toContain('Puerto DC dañado');
+    // Búsqueda sin distinguir mayúsculas y filtro por fecha de ingreso (hoy, zona horaria del negocio)
+    const byClient = await request(http).get('/api/v1/work-orders?client=cliente e2e').set(auth).expect(200);
+    expect(byClient.body.items.map((i: { id: string }) => i.id)).toContain(id);
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date());
+    const byDate = await request(http)
+      .get(`/api/v1/work-orders?dateFrom=${today}&dateTo=${today}`)
+      .set(auth)
+      .expect(200);
+    expect(byDate.body.items.map((i: { id: string }) => i.id)).toContain(id);
+    const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+    const empty = await request(http).get(`/api/v1/work-orders?dateFrom=${tomorrow}`).set(auth).expect(200);
+    expect(empty.body.items).toHaveLength(0);
+
+    const stats = await request(http).get('/api/v1/work-orders/stats').set(auth).expect(200);
+    expect(JSON.stringify(stats.body)).toContain('ENTREGADO');
   });
 });

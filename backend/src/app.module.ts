@@ -1,6 +1,6 @@
 /**
  * Objetivo: módulo raíz. Compone configuración validada, logging
- * estructurado, rate limiting, eventos, BD, almacenamiento, métricas y los
+ * estructurado, rate limiting, BD, almacenamiento, métricas y los
  * módulos de negocio. Registra los guards globales en orden:
  *   ThrottlerGuard -> JwtAuthGuard -> RolesGuard
  */
@@ -8,7 +8,6 @@ import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { LoggerModule } from 'nestjs-pino';
@@ -24,7 +23,6 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { EquipmentModule } from './modules/equipment/equipment.module';
 import { HealthModule } from './modules/health/health.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
-import { NotificationsModule } from './modules/notifications/notifications.module';
 import { UsersModule } from './modules/users/users.module';
 import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
 
@@ -80,7 +78,6 @@ import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
         },
       ],
     }),
-    EventEmitterModule.forRoot(),
     DatabaseModule,
     StorageModule,
     MetricsModule,
@@ -89,7 +86,6 @@ import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
     UsersModule,
     ClientsModule,
     EquipmentModule,
-    NotificationsModule,
     WorkOrdersModule,
   ],
   providers: [
