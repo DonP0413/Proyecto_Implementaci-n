@@ -24,18 +24,18 @@ export class UsersRepository {
     return this.repo.findOne({ where: { id } });
   }
 
-  findByEmailWithPassword(email: string): Promise<UserEntity | null> {
+  findByUsernameWithPassword(username: string): Promise<UserEntity | null> {
     return this.repo
       .createQueryBuilder('u')
       .addSelect('u.passwordHash')
-      .where('lower(u.email) = lower(:email)', { email })
+      .where('lower(u.username) = lower(:username)', { username })
       .getOne();
   }
 
-  async existsByEmail(email: string): Promise<boolean> {
+  async existsByUsername(username: string): Promise<boolean> {
     const count = await this.repo
       .createQueryBuilder('u')
-      .where('lower(u.email) = lower(:email)', { email })
+      .where('lower(u.username) = lower(:username)', { username })
       .getCount();
     return count > 0;
   }

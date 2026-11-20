@@ -189,7 +189,7 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
               {...register('amountCharged', { setValueAs: parseAmountInput })}
             />
             <Input label="Nombre de quien retira" required placeholder="Ej.: María Fernanda Pérez" error={errors.receivedByName?.message} {...register('receivedByName')} />
-            <Input label="Documento de quien retira" placeholder="Ej.: 1718123456" error={errors.receivedByDocument?.message} {...register('receivedByDocument')} />
+            <Input label="Documento de quien retira" inputMode="numeric" maxLength={13} placeholder="Ej.: 1718123456" error={errors.receivedByDocument?.message} {...register('receivedByDocument')} />
             <Input label="Notas sobre accesorios" placeholder="Ej.: El cliente se lleva el cargador aparte" error={errors.accessoriesNotes?.message} {...register('accessoriesNotes')} />
             <fieldset className="span-2">
               <legend>Accesorios entregados</legend>

@@ -56,9 +56,9 @@ interface ConfirmProps {
 }
 
 /**
- * Diálogo "¿Está seguro?" para acciones con efectos importantes (envían
- * correos, cambian el estado o no se pueden deshacer). El foco inicial queda
- * en Cancelar para que un Enter accidental no confirme.
+ * Diálogo "¿Está seguro?" para acciones con efectos importantes (cambian el
+ * estado o no se pueden deshacer). El foco inicial queda en Cancelar para que
+ * un Enter accidental no confirme.
  */
 export function ConfirmDialog({
   open,

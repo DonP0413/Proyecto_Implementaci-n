@@ -4,7 +4,7 @@
  *   2. COTIZACIÓN de la reparación.
  *   3. Equipo LISTO PARA ENTREGAR (incluye los datos de la entrega si ya se registró).
  * Todos comparten encabezado, datos del cliente y del equipo, las POLÍTICAS DE
- * GARANTÍA y las líneas de firma. Reemplazan a los correos al cliente.
+ * GARANTÍA y las líneas de firma.
  */
 import { Injectable, Logger } from '@nestjs/common';
 import PDFDocument from 'pdfkit';

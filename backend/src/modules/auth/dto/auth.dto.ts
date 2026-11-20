@@ -1,14 +1,16 @@
 /** Objetivo: DTOs de autenticación. */
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 import { UserResponseDto } from '../../users/dto/user.dto';
 
 export class LoginDto {
-  @ApiProperty({ example: 'admin@pintotech.ec' })
+  @ApiProperty({ example: 'admin', description: 'Nombre de usuario' })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
-  @IsEmail()
-  email: string;
+  @IsString()
+  @MinLength(1)
+  @MaxLength(160)
+  username: string;
 
   @ApiProperty({ example: 'Cambiar2026' })
   @IsString()

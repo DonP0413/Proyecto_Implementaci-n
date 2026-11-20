@@ -31,8 +31,8 @@ const clean = <T extends object>(params: T) =>
   );
 
 export const authApi = {
-  login: (email: string, password: string) =>
-    http.post<LoginResponse>('/auth/login', { email, password }).then((r) => r.data),
+  login: (username: string, password: string) =>
+    http.post<LoginResponse>('/auth/login', { username, password }).then((r) => r.data),
   me: () => http.get<User>('/auth/me').then((r) => r.data),
 };
 
@@ -105,7 +105,7 @@ export const catalogApi = {
 
 export const usersApi = {
   list: () => http.get<User[]>('/users').then((r) => r.data),
-  create: (data: { fullName: string; email: string; password: string; role: UserRole }) =>
+  create: (data: { fullName: string; username: string; password: string; role: UserRole }) =>
     http.post<User>('/users', data).then((r) => r.data),
   update: (id: string, data: Partial<{ fullName: string; role: UserRole; isActive: boolean }>) =>
     http.patch<User>(`/users/${id}`, data).then((r) => r.data),

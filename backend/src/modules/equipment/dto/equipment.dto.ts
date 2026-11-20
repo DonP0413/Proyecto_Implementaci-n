@@ -1,7 +1,13 @@
 /** Objetivo: DTOs de equipos y tipos de equipo. */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsObject, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsObject, IsOptional, IsString, Length, Matches, Min } from 'class-validator';
+import {
+  BRAND_MODEL_MESSAGE,
+  BRAND_MODEL_RULE,
+  SERIAL_MESSAGE,
+  SERIAL_RULE,
+} from '../../../common/validation/field-rules';
 import type { EquipmentTypeEntity, SpecField } from '../equipment-type.entity';
 import type { EquipmentEntity } from '../equipment.entity';
 
@@ -22,18 +28,21 @@ export class EquipmentInputDto {
   @Transform(trim)
   @IsString()
   @Length(1, 60)
+  @Matches(BRAND_MODEL_RULE, { message: `Marca: ${BRAND_MODEL_MESSAGE}` })
   brand: string;
 
   @ApiProperty({ example: 'Pavilion 15-eg0xxx' })
   @Transform(trim)
   @IsString()
   @Length(1, 80)
+  @Matches(BRAND_MODEL_RULE, { message: `Modelo: ${BRAND_MODEL_MESSAGE}` })
   model: string;
 
   @ApiProperty({ example: '5CD1234XYZ', description: 'Número de serie del equipo (obligatorio)' })
   @Transform(trim)
   @IsString({ message: 'El número de serie es obligatorio' })
   @Length(1, 80, { message: 'El número de serie debe tener entre 1 y 80 caracteres' })
+  @Matches(SERIAL_RULE, { message: SERIAL_MESSAGE })
   serialNumber: string;
 
   @ApiPropertyOptional({ example: { ram: '16 GB', storage: '512 GB SSD' } })

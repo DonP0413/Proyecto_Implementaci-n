@@ -3,6 +3,14 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsDateString, IsEmail, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
+import {
+  CLIENT_NAME_MESSAGE,
+  CLIENT_NAME_RULE,
+  DOCUMENT_ID_MESSAGE,
+  DOCUMENT_ID_RULE,
+  PHONE_MESSAGE,
+  PHONE_RULE,
+} from '../../../common/validation/field-rules';
 import type { ClientEntity } from '../client.entity';
 
 const trimOrNull = ({ value }: { value: unknown }) => {
@@ -16,12 +24,16 @@ export class CreateClientDto {
   @Transform(trimOrNull)
   @IsString()
   @Length(3, 150)
+  @Matches(CLIENT_NAME_RULE, { message: CLIENT_NAME_MESSAGE })
   fullName: string;
 
-  @ApiProperty({ example: '1718123456', description: 'Cédula, RUC o pasaporte (obligatorio)' })
+  @ApiProperty({
+    example: '1718123456',
+    description: 'Cédula (10 dígitos) o RUC (13 dígitos), sólo números (obligatorio)',
+  })
   @Transform(trimOrNull)
   @IsString({ message: 'La cédula / RUC del cliente es obligatoria' })
-  @Matches(/^[A-Za-z0-9-]{5,20}$/, { message: 'documentId debe tener 5-20 caracteres alfanuméricos' })
+  @Matches(DOCUMENT_ID_RULE, { message: DOCUMENT_ID_MESSAGE })
   documentId: string;
 
   @ApiProperty({ example: 'maria.perez@example.com' })
@@ -33,7 +45,8 @@ export class CreateClientDto {
   @ApiPropertyOptional({ example: '0991234567' })
   @IsOptional()
   @Transform(trimOrNull)
-  @Matches(/^[0-9+\s()-]{7,20}$/, { message: 'Teléfono inválido' })
+  @MaxLength(20)
+  @Matches(PHONE_RULE, { message: PHONE_MESSAGE })
   phone?: string;
 
   @ApiPropertyOptional()

@@ -13,7 +13,7 @@ import { getErrorMessage } from '../../lib/errors';
 import { useAuthStore } from '../../stores/authStore';
 
 const schema = z.object({
-  email: z.string().trim().email('Ingrese un correo válido'),
+  username: z.string().trim().min(1, 'Ingrese su usuario'),
   password: z.string().min(1, 'Ingrese su contraseña'),
 });
 type LoginForm = z.infer<typeof schema>;
@@ -49,7 +49,7 @@ export function LoginPage() {
   const onSubmit = async (values: LoginForm) => {
     setError(null);
     try {
-      const result = await authApi.login(values.email, values.password);
+      const result = await authApi.login(values.username, values.password);
       login(result.accessToken, result.user);
       const from = (location.state as { from?: string } | null)?.from ?? '/';
       navigate(from, { replace: true });
@@ -97,7 +97,7 @@ export function LoginPage() {
             <p className="login-card-subtitle">Sistema de gestión de reparaciones</p>
           </div>
           {error && <Alert kind="error">{error}</Alert>}
-          <Input label="Correo electrónico" type="email" autoComplete="username" error={errors.email?.message} {...register('email')} />
+          <Input label="Usuario" autoComplete="username" autoCapitalize="none" spellCheck={false} error={errors.username?.message} {...register('username')} />
           <Input label="Contraseña" type="password" autoComplete="current-password" error={errors.password?.message} {...register('password')} />
           <Button type="submit" loading={isSubmitting} className="btn-block">
             Ingresar

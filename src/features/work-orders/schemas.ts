@@ -11,6 +11,18 @@ import {
   type UpdateWorkOrderIntakeRequest,
 } from '../../api/types';
 import { toDateInput } from '../../lib/format';
+import {
+  BRAND_MODEL_MESSAGE,
+  BRAND_MODEL_RULE,
+  CLIENT_NAME_MESSAGE,
+  CLIENT_NAME_RULE,
+  documentIdField,
+  optionalDocumentIdField,
+  optionalPhoneField,
+  personNameField,
+  SERIAL_MESSAGE,
+  SERIAL_RULE,
+} from '../../lib/validation';
 
 const optionalText = (max: number) => z.string().trim().max(max, `Máximo ${max} caracteres`).optional();
 
@@ -31,19 +43,10 @@ export const receivedAtSchema = z
   .refine((value) => new Date(value).getTime() <= Date.now() + CLOCK_SKEW_MS, 'La fecha de ingreso no puede ser futura');
 
 export const clientSchema = z.object({
-  fullName: z.string().trim().min(3, 'Ingrese el nombre completo').max(150),
-  documentId: z
-    .string()
-    .trim()
-    .min(1, 'Ingrese la cédula o RUC')
-    .regex(/^[A-Za-z0-9-]{5,20}$/, 'Documento inválido (5-20 caracteres)'),
-  email: z.string().trim().email('Correo inválido: es necesario para las notificaciones'),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^[0-9+\s()-]{7,20}$/, 'Teléfono inválido')
-    .or(z.literal(''))
-    .optional(),
+  fullName: z.string().trim().min(3, 'Ingrese el nombre completo').max(150).regex(CLIENT_NAME_RULE, CLIENT_NAME_MESSAGE),
+  documentId: documentIdField,
+  email: z.string().trim().email('Correo inválido: es el contacto del cliente que aparece en los PDF'),
+  phone: optionalPhoneField,
   address: optionalText(250),
   registeredAt: registeredAtSchema.optional(),
 });
@@ -51,9 +54,14 @@ export type ClientFormValues = z.infer<typeof clientSchema>;
 
 const equipmentSchema = z.object({
   equipmentTypeId: z.number({ invalid_type_error: 'Seleccione el tipo de equipo' }).int().positive('Seleccione el tipo de equipo'),
-  brand: z.string().trim().min(1, 'Ingrese la marca').max(60),
-  model: z.string().trim().min(1, 'Ingrese el modelo').max(80),
-  serialNumber: z.string().trim().min(1, 'Ingrese el número de serie').max(80, 'Máximo 80 caracteres'),
+  brand: z.string().trim().min(1, 'Ingrese la marca').max(60).regex(BRAND_MODEL_RULE, `Marca: ${BRAND_MODEL_MESSAGE}`),
+  model: z.string().trim().min(1, 'Ingrese el modelo').max(80).regex(BRAND_MODEL_RULE, `Modelo: ${BRAND_MODEL_MESSAGE}`),
+  serialNumber: z
+    .string()
+    .trim()
+    .min(1, 'Ingrese el número de serie')
+    .max(80, 'Máximo 80 caracteres')
+    .regex(SERIAL_RULE, SERIAL_MESSAGE),
   technicalSpecs: z.record(z.string()),
   forceNewEquipment: z.boolean().optional(),
 });
@@ -262,8 +270,8 @@ export const deliverySchema = z.object({
   amountCharged: amountFieldSchema,
   returnCondition: z.string().trim().min(3, 'Describa las condiciones de entrega').max(4000),
   accessoriesNotes: optionalText(500),
-  receivedByName: z.string().trim().min(3, 'Nombre de quien retira').max(150),
-  receivedByDocument: optionalText(20),
+  receivedByName: personNameField(3, 150, 'Nombre de quien retira'),
+  receivedByDocument: optionalDocumentIdField,
   returnedAccessoryIds: z.array(z.string()),
 });
 export type DeliveryFormValues = z.infer<typeof deliverySchema>;

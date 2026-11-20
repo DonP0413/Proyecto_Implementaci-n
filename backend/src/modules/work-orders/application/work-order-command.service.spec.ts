@@ -16,7 +16,7 @@ import { ReceiptService } from './receipt.service';
 import { WorkOrderCommandService } from './work-order-command.service';
 
 describe('WorkOrderCommandService', () => {
-  const actor: AuthUser = { id: 'u1', email: 'a@a.com', fullName: 'Ana', role: UserRole.RECEPCIONISTA };
+  const actor: AuthUser = { id: 'u1', username: 'ana', fullName: 'Ana', role: UserRole.RECEPCIONISTA };
   const manager = {} as EntityManager;
   const dataSource = { transaction: jest.fn((cb: (m: EntityManager) => unknown) => cb(manager)) };
 

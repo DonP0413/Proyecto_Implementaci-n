@@ -19,7 +19,7 @@ import {
 
 @Injectable()
 export class WorkOrdersRepository {
-  /** Consecutivo del ID de trabajo (tabla `sequences`; reemplaza al SEQUENCE de PostgreSQL). */
+  /** Consecutivo del ID de trabajo (tabla `sequences`). */
   async nextSequence(manager: EntityManager): Promise<number> {
     const rows: Array<{ value: number }> = await manager.query(
       `UPDATE sequences SET value = value + 1 WHERE name = 'work_order_code' RETURNING value`,

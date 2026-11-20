@@ -32,7 +32,8 @@ export interface ApiErrorBody {
 export interface User {
   id: string;
   fullName: string;
-  email: string;
+  /** Nombre de usuario para iniciar sesión. */
+  username: string;
   role: UserRole;
   isActive: boolean;
   lastLoginAt: string | null;

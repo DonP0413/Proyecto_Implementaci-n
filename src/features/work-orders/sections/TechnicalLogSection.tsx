@@ -1,6 +1,6 @@
 /**
  * Objetivo: registro INTERNO del técnico (RF-07). Información exclusiva del
- * personal: nunca se incluye en correos ni comprobantes. La UI lo marca
+ * personal: nunca se incluye en comprobantes. La UI lo marca
  * visualmente para evitar confusiones.
  */
 import { zodResolver } from '@hookform/resolvers/zod';

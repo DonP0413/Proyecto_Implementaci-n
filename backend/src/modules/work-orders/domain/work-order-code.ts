@@ -1,7 +1,7 @@
 /**
  * Objetivo: Factory del "ID único de trabajo" legible para el cliente.
  * Formato: <PREFIJO>-<AÑO>-<SECUENCIA 6 dígitos>  ej. PT-2026-000123
- * - La secuencia viene de un SEQUENCE de PostgreSQL: única y concurrente-segura.
+ * - La secuencia viene de la tabla `sequences`: única y correlativa.
  * - El año facilita al personal ubicar la orden; la unicidad la garantiza la secuencia.
  */
 export class WorkOrderCodeFactory {

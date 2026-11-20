@@ -11,7 +11,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/main';
 
-const ADMIN = { email: process.env.ADMIN_EMAIL!, password: process.env.ADMIN_PASSWORD! };
+const ADMIN = { username: process.env.ADMIN_USER!, password: process.env.ADMIN_PASSWORD! };
 
 const binaryParser = (res: request.Response, cb: (err: Error | null, body: Buffer) => void) => {
   const chunks: Buffer[] = [];
@@ -51,10 +51,51 @@ describe('Flujo de orden de trabajo (e2e)', () => {
     expect(token).toBeDefined();
   });
 
+  it('crea usuarios con nombre de usuario (sin correo) y valida el formato', async () => {
+    const auth = { Authorization: `Bearer ${token}` };
+    await request(http)
+      .post('/api/v1/users')
+      .set(auth)
+      .send({ fullName: 'Ana Torres', username: 'Ana.Torres', password: 'Clave2026', role: 'RECEPCIONISTA' })
+      .expect(201);
+    // Se guarda en minúsculas y se inicia sesión con el usuario, sin importar mayúsculas.
+    await request(http)
+      .post('/api/v1/auth/login')
+      .send({ username: 'ANA.torres', password: 'Clave2026' })
+      .expect(200);
+    await request(http)
+      .post('/api/v1/users')
+      .set(auth)
+      .send({ fullName: 'Con Espacio', username: 'con espacio', password: 'Clave2026', role: 'TECNICO' })
+      .expect(400);
+    const wrong = await request(http)
+      .post('/api/v1/auth/login')
+      .send({ username: 'ana.torres', password: 'Otra2026' })
+      .expect(401);
+    expect(wrong.body.message).toBe('Usuario o contraseña incorrectos');
+    const users = await request(http).get('/api/v1/users').set(auth).expect(200);
+    expect(users.body.map((u: { username: string }) => u.username)).toEqual(
+      expect.arrayContaining(['ana.torres', 'e2e-admin']),
+    );
+  });
+
   it('recorre el ciclo completo de una reparación', async () => {
     const auth = { Authorization: `Bearer ${token}` };
     const types = await request(http).get('/api/v1/equipment-types').set(auth).expect(200);
     const laptop = types.body.find((t: { code: string }) => t.code === 'LAPTOP');
+
+    // Validación de tipos: cédula con letras y teléfono con letras se rechazan (400).
+    const invalid = await request(http)
+      .post('/api/v1/clients')
+      .set(auth)
+      .send({
+        fullName: 'Cliente Inválido',
+        documentId: '17181234AB',
+        email: 'x@example.com',
+        phone: '099ABC4567',
+      })
+      .expect(400);
+    expect(JSON.stringify(invalid.body)).toContain('Cédula (10 dígitos) o RUC (13 dígitos)');
 
     const created = await request(http)
       .post('/api/v1/work-orders')
@@ -65,7 +106,7 @@ describe('Flujo de orden de trabajo (e2e)', () => {
           client: {
             fullName: 'Cliente E2E',
             email: 'cliente.e2e@example.com',
-            documentId: `E2E${Date.now()}`.slice(0, 20),
+            documentId: String(Date.now()).slice(-10),
           },
           equipment: {
             equipmentTypeId: laptop.id,
@@ -137,7 +178,7 @@ describe('Flujo de orden de trabajo (e2e)', () => {
           workSummary: 'Se reemplazó el puerto de carga',
           amountCharged: 35.5,
           returnCondition: 'Equipo funcional',
-          receivedByName: 'Cliente E2E',
+          receivedByName: 'Cliente Prueba',
           returnedAccessoryIds: [],
         }),
       )

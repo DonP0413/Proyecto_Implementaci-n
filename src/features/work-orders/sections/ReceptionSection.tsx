@@ -139,7 +139,7 @@ function EditIntakeModal({ wo, onClose }: { wo: WorkOrderDetail; onClose: () => 
         <h3 className="subheading">1. Datos del cliente</h3>
         <div className="grid-2">
           <Input label="Nombre completo" required error={errors.client?.fullName?.message} {...register('client.fullName')} />
-          <Input label="Cédula / RUC" required error={errors.client?.documentId?.message} {...register('client.documentId')} />
+          <Input label="Cédula / RUC" required inputMode="numeric" maxLength={13} error={errors.client?.documentId?.message} {...register('client.documentId')} />
           <Input label="Correo electrónico" type="email" required error={errors.client?.email?.message} {...register('client.email')} />
           <Input label="Teléfono" type="tel" error={errors.client?.phone?.message} {...register('client.phone')} />
           <Input label="Dirección" error={errors.client?.address?.message} {...register('client.address')} />

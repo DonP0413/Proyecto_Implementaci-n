@@ -20,8 +20,15 @@ import {
   MaxLength,
   Min,
   ValidateIf,
+  Matches,
   ValidateNested,
 } from 'class-validator';
+import {
+  DOCUMENT_ID_MESSAGE,
+  DOCUMENT_ID_RULE,
+  PERSON_NAME_MESSAGE,
+  PERSON_NAME_RULE,
+} from '../../../../common/validation/field-rules';
 import { PaginationQueryDto } from '../../../../common/pagination/pagination';
 import { CreateClientDto } from '../../../clients/dto/client.dto';
 import { EquipmentInputDto } from '../../../equipment/dto/equipment.dto';
@@ -254,13 +261,14 @@ export class RegisterDeliveryDto {
   @Transform(trim)
   @IsString()
   @Length(3, 150)
+  @Matches(PERSON_NAME_RULE, { message: `Quien retira: ${PERSON_NAME_MESSAGE}` })
   receivedByName: string;
 
   @ApiPropertyOptional({ example: '1718123456' })
   @IsOptional()
   @Transform(trim)
   @IsString()
-  @MaxLength(20)
+  @Matches(DOCUMENT_ID_RULE, { message: `Documento de quien retira: ${DOCUMENT_ID_MESSAGE}` })
   receivedByDocument?: string;
 
   @ApiPropertyOptional({ type: [String], description: 'IDs de accesorios devueltos al cliente' })

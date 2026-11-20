@@ -1,7 +1,7 @@
 /**
- * Objetivo: transformar NUMERIC de PostgreSQL (llega como string desde `pg`
- * para no perder precisión) a number en la entidad. Los montos tienen 2
- * decimales y máximo 10 dígitos, rango seguro para number de JS.
+ * Objetivo: transformar valores numéricos de base de datos a number en la
+ * entidad. Los montos tienen 2 decimales y máximo 10 dígitos, rango seguro
+ * para number de JS.
  */
 import type { ValueTransformer } from 'typeorm';
 

@@ -7,7 +7,7 @@
  *   - createQuotation   : registra cotización y pasa a COTIZACION_GENERADA (RF 6).
  *   - registerDelivery  : registro de entrega (RF 7).
  * Cada caso de uso es UNA transacción: si algo falla, no se guarda nada.
- * Al cliente se le entregan documentos PDF (ver ReceiptService), no correos.
+ * Al cliente se le entregan documentos PDF (ver ReceiptService).
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -68,7 +68,7 @@ export class WorkOrderCommandService {
     private readonly receipts: ReceiptService,
     private readonly metrics: MetricsService,
     private readonly config: ConfigService,
-  ) {}
+  ) { }
 
   async create(
     dto: CreateWorkOrderDto,

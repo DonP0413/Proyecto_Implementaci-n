@@ -1,7 +1,7 @@
 /**
  * Objetivo: caso de uso de inicio de sesión. Emite un JWT firmado (HS256) con
- * id, correo, nombre y rol. Mensaje de error genérico para no revelar si el
- * correo existe (previene enumeración de usuarios).
+ * id, usuario, nombre y rol. Mensaje de error genérico para no revelar si el
+ * usuario existe (previene enumeración de usuarios).
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -25,18 +25,23 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto): Promise<LoginResponseDto> {
-    const user = await this.users.findByEmailWithPassword(dto.email);
+    const user = await this.users.findByUsernameWithPassword(dto.username);
     const valid = user ? await this.hasher.compare(dto.password, user.passwordHash) : false;
 
     if (!user || !valid || !user.isActive) {
       this.logger.warn(
-        { email: dto.email, reason: !user ? 'no_user' : !valid ? 'bad_password' : 'inactive' },
+        { username: dto.username, reason: !user ? 'no_user' : !valid ? 'bad_password' : 'inactive' },
         'Intento de inicio de sesión fallido',
       );
-      throw new UnauthorizedError('Correo o contraseña incorrectos', 'INVALID_CREDENTIALS');
+      throw new UnauthorizedError('Usuario o contraseña incorrectos', 'INVALID_CREDENTIALS');
     }
 
-    const payload: JwtPayload = { sub: user.id, email: user.email, name: user.fullName, role: user.role };
+    const payload: JwtPayload = {
+      sub: user.id,
+      username: user.username,
+      name: user.fullName,
+      role: user.role,
+    };
     const accessToken = await this.jwt.signAsync(payload);
     await this.users.touchLastLogin(user.id);
     this.logger.log({ userId: user.id }, 'Inicio de sesión exitoso');

@@ -177,7 +177,7 @@ export function NewWorkOrderPage() {
         ) : (
           <div className="grid-3">
             <Input label="Nombre completo" required placeholder="Ej.: María Fernanda Pérez" error={errors.client?.fullName?.message} {...register('client.fullName')} />
-            <Input label="Cédula / RUC" required placeholder="Ej.: 1718123456" error={errors.client?.documentId?.message} {...register('client.documentId')} />
+            <Input label="Cédula / RUC" required inputMode="numeric" maxLength={13} placeholder="Ej.: 1718123456" error={errors.client?.documentId?.message} {...register('client.documentId')} />
             <Input label="Correo electrónico" type="email" required placeholder="Ej.: maria.perez@gmail.com" error={errors.client?.email?.message} {...register('client.email')} />
             <Input label="Teléfono" type="tel" placeholder="Ej.: 0991234567" error={errors.client?.phone?.message} {...register('client.phone')} />
             <Input label="Dirección" placeholder="Ej.: Av. Amazonas N34-12 y Naciones Unidas" error={errors.client?.address?.message} {...register('client.address')} />
