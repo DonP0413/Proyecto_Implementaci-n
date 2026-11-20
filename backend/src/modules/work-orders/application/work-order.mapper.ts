@@ -113,6 +113,7 @@ export class WorkOrderMapper {
       allowedTransitions: WorkOrderStateMachine.manualTransitions(entity.status).map((status) => ({
         status,
         label: WORK_ORDER_STATUS_LABELS[status],
+        notePrompt: WorkOrderStateMachine.notePrompt(entity.status, status),
       })),
       actions: {
         canEditIntake: entity.status === WorkOrderStatus.INGRESADO,

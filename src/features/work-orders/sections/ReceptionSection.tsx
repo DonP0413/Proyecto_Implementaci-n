@@ -3,7 +3,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import { workOrderPdfPaths } from '../../../api/endpoints';
 import {
   EXTRA_SPEC_PREFIX,
   MAX_EXTRA_SPECS,
@@ -21,7 +20,6 @@ import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../stores/toastStore';
 import { StatusBadge } from '../components/StatusBadge';
 import { AttachmentGallery } from '../components/AttachmentGallery';
-import { PdfButton } from '../components/PdfButton';
 import { fieldLabel, groupFields } from '../components/TechnicalSpecsFields';
 import { PHYSICAL_CONDITION_OPTIONS, POWER_STATUS_OPTIONS } from '../constants';
 import { useEquipmentTypes, useUpdateIntake, useWorkOrders } from '../hooks';
@@ -231,19 +229,6 @@ export function ReceptionSection({ wo }: { wo: WorkOrderDetail }) {
 
   return (
     <div className="grid-2">
-      <div className="span-2">
-        <Alert kind="info">
-          <div className="review-head">
-            <span>
-              <strong>PDF de ingreso:</strong> comprobante con los datos del cliente, el equipo, el estado de recepción y las políticas
-              de garantía, para imprimir y entregar al cliente.
-            </span>
-            <PdfButton variant="primary" path={workOrderPdfPaths.reception(wo.id)}>
-              Generar PDF de ingreso
-            </PdfButton>
-          </div>
-        </Alert>
-      </div>
       {canEditIntake && (
         <div className="span-2">
           <Alert kind="info">

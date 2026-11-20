@@ -4,7 +4,7 @@
  * para imprimirlo o guardarlo.
  */
 import { useState, type ReactNode } from 'react';
-import { fetchProtectedFile } from '../../../api/endpoints';
+import { openProtectedFile } from '../../../api/endpoints';
 import { Button } from '../../../components/ui/Button';
 import { getErrorMessage } from '../../../lib/errors';
 import { toast } from '../../../stores/toastStore';
@@ -21,23 +21,12 @@ interface PdfButtonProps {
 export function PdfButton({ path, children, disabled, title, variant = 'secondary', size = 'md' }: PdfButtonProps) {
   const [loading, setLoading] = useState(false);
   const open = async () => {
-    // La pestaña se abre YA (dentro del clic) para que el bloqueador de ventanas emergentes no la impida;
-    // cuando llega el PDF se muestra en ella. Si el navegador la bloquea, el PDF se descarga.
-    const tab = window.open('', '_blank');
+    // openProtectedFile abre la pestaña dentro del clic y carga el PDF con su URL real
+    // (nombre claro y extensión .pdf al guardarlo). Si el navegador la bloquea, lo descarga.
     setLoading(true);
     try {
-      const { url, filename } = await fetchProtectedFile(path);
-      if (tab) {
-        tab.location.href = url;
-      } else {
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.click();
-      }
-      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
+      await openProtectedFile(path);
     } catch (e) {
-      tab?.close();
       toast.error(getErrorMessage(e));
     } finally {
       setLoading(false);

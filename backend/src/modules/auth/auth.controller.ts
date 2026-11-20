@@ -7,7 +7,7 @@ import { CurrentUser, Public } from '../../common/decorators/auth.decorators';
 import { UserResponseDto } from '../users/dto/user.dto';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
-import { LoginDto, LoginResponseDto } from './dto/auth.dto';
+import { DownloadTokenDto, DownloadTokenResponseDto, LoginDto, LoginResponseDto } from './dto/auth.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -24,6 +24,17 @@ export class AuthController {
   @ApiOkResponse({ type: LoginResponseDto })
   login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @ApiBearerAuth()
+  @Post('download-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: DownloadTokenResponseDto })
+  downloadToken(
+    @Body() dto: DownloadTokenDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<DownloadTokenResponseDto> {
+    return this.authService.createDownloadToken(user, dto.path);
   }
 
   @ApiBearerAuth()

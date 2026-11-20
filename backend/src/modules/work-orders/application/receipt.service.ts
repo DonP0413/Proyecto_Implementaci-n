@@ -65,7 +65,7 @@ export class ReceiptService {
   async getReceipt(workOrderId: string): Promise<PdfFile> {
     const manager = this.dataSource.manager;
     const wo = await this.load(workOrderId);
-    const filename = `comprobante-ingreso-${wo.code}.pdf`;
+    const filename = `Comprobante_Ingreso_${wo.code}.pdf`;
     const [stored] = await this.workOrders.findAttachmentsByCategory(
       workOrderId,
       [AttachmentCategory.RECEIPT_PDF],
@@ -101,7 +101,7 @@ export class ReceiptService {
         createdBy: quotation.createdBy?.fullName ?? null,
       },
     });
-    return { filename: `cotizacion-${wo.code}.pdf`, stream: Readable.from(pdf) };
+    return { filename: `Cotizacion_${wo.code}.pdf`, stream: Readable.from(pdf) };
   }
 
   async getReadyForPickupPdf(workOrderId: string): Promise<PdfFile> {
@@ -134,8 +134,8 @@ export class ReceiptService {
           }
         : null,
     });
-    const prefix = dr ? 'comprobante-entrega' : 'listo-para-entregar';
-    return { filename: `${prefix}-${wo.code}.pdf`, stream: Readable.from(pdf) };
+    const prefix = dr ? 'Comprobante_Entrega' : 'Equipo_Listo_Para_Entregar';
+    return { filename: `${prefix}_${wo.code}.pdf`, stream: Readable.from(pdf) };
   }
 
   // ---------------------------------------------------------------- helpers

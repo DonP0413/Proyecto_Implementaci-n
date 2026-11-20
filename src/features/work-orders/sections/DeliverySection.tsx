@@ -212,7 +212,7 @@ export function DeliverySection({ wo }: { wo: WorkOrderDetail }) {
               />
             </div>
             <div className="span-2 form-actions">
-              <Button type="submit">Revisar entrega →</Button>
+              <Button type="submit">Revisar entrega</Button>
             </div>
           </form>
         </Card>

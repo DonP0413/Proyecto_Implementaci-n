@@ -206,6 +206,7 @@ export class WorkOrderCommandService {
     await this.dataSource.transaction(async (manager) => {
       const wo = await this.lock(id, manager);
       WorkOrderStateMachine.assertTransition(wo.status, dto.status);
+      WorkOrderStateMachine.assertNote(wo.status, dto.status, dto.note);
       if (DEDICATED_TRANSITION_TARGETS.includes(dto.status)) {
         throw new BusinessRuleError(
           dto.status === WorkOrderStatus.COTIZACION_GENERADA

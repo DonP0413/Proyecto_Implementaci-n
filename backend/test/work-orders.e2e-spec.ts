@@ -135,7 +135,33 @@ describe('Flujo de orden de trabajo (e2e)', () => {
       expect((res.body as Buffer).subarray(0, 5).toString()).toBe('%PDF-');
       return res;
     };
-    await pdf('receipt');
+    const receipt = await pdf('receipt');
+    expect(receipt.headers['content-disposition']).toMatch(
+      /filename="Comprobante_Ingreso_PT-\d{4}-\d{6}\.pdf"/,
+    );
+
+    // Enlace temporal de descarga: abre el PDF en una pestaña con su URL real (nombre y .pdf).
+    const receiptPath = `/work-orders/${id}/receipt`;
+    const link = await request(http)
+      .post('/api/v1/auth/download-token')
+      .set(auth)
+      .send({ path: receiptPath })
+      .expect(200);
+    const viaLink = await request(http)
+      .get(`/api/v1${receiptPath}?dl=${link.body.token}`)
+      .buffer(true)
+      .parse(binaryParser)
+      .expect(200);
+    expect(viaLink.headers['content-type']).toContain('application/pdf');
+    expect(viaLink.headers['content-disposition']).toContain('Comprobante_Ingreso_PT-');
+    // Sólo sirve para esa ruta, no como token de sesión, y un token falso se rechaza.
+    await request(http).get(`/api/v1/work-orders/${id}/ready-pdf?dl=${link.body.token}`).expect(401);
+    await request(http)
+      .get('/api/v1/work-orders')
+      .set({ Authorization: `Bearer ${link.body.token}` })
+      .expect(401);
+    await request(http).get(`/api/v1${receiptPath}?dl=falso`).expect(401);
+    await request(http).post('/api/v1/auth/download-token').set(auth).send({ path: '/users' }).expect(400);
     // Sin cotización ni estado "Listo para retirar" los otros PDF no están disponibles
     await request(http).get(`/api/v1/work-orders/${id}/quotation-pdf`).set(auth).expect(422);
     await request(http).get(`/api/v1/work-orders/${id}/ready-pdf`).set(auth).expect(422);
@@ -167,7 +193,7 @@ describe('Flujo de orden de trabajo (e2e)', () => {
       .send({ status: 'LISTO_PARA_RETIRAR' })
       .expect(200);
     const ready = await pdf('ready-pdf');
-    expect(ready.headers['content-disposition']).toContain('listo-para-entregar');
+    expect(ready.headers['content-disposition']).toContain('Equipo_Listo_Para_Entregar_PT-');
 
     const delivered = await request(http)
       .post(`/api/v1/work-orders/${id}/delivery`)
@@ -187,7 +213,7 @@ describe('Flujo de orden de trabajo (e2e)', () => {
     expect(delivered.body.internal.technicalLogs).toHaveLength(1);
 
     const deliveryPdf = await pdf('ready-pdf');
-    expect(deliveryPdf.headers['content-disposition']).toContain('comprobante-entrega');
+    expect(deliveryPdf.headers['content-disposition']).toContain('Comprobante_Entrega_PT-');
 
     const search = await request(http)
       .get(`/api/v1/work-orders?q=${created.body.code}`)

@@ -11,7 +11,7 @@
  *   4. Opción "Compartir en la red local": el servidor escucha en 0.0.0.0 para
  *      que otros equipos entren desde el navegador con http://<IP>:<puerto>.
  */
-const { app, BrowserWindow, Menu, clipboard, dialog, safeStorage, shell, utilityProcess } = require('electron');
+const { app, BrowserWindow, Menu, clipboard, dialog, safeStorage, session, shell, utilityProcess } = require('electron');
 const { randomBytes } = require('node:crypto');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -455,6 +455,13 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     ensureConfig();
+    // Respaldo: toda descarga de PDF se guarda con extensión .pdf (el nombre lo envía el servidor).
+    session.defaultSession.on('will-download', (_event, item) => {
+      const name = item.getFilename();
+      if (item.getMimeType() === 'application/pdf' && !/\.pdf$/i.test(name)) {
+        item.setSaveDialogOptions({ defaultPath: `${name || 'documento'}.pdf` });
+      }
+    });
     buildMenu();
     createWindow();
     // ADMIN_EMAIL: configuraciones creadas antes del cambio a nombre de usuario.

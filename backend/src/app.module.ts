@@ -12,6 +12,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { LoggerModule } from 'nestjs-pino';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { redactDownloadToken } from './common/auth/download-link';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { configuration } from './config/configuration';
@@ -61,7 +62,7 @@ import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
               req: (req: { id: string; method: string; url: string }) => ({
                 id: req.id,
                 method: req.method,
-                url: req.url,
+                url: redactDownloadToken(req.url),
               }),
             },
           },

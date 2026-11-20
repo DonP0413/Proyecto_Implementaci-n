@@ -113,7 +113,7 @@ export function LoginPage() {
           {showRecovery && (
             <Alert kind="info">
               <p>
-                Solicite al <strong>administrador</strong> que restablezca su contraseña desde la sección <strong>Usuarios</strong>.
+                Solicite al <strong>administrador</strong> que restablezca su contraseña.
               </p>
             </Alert>
           )}
