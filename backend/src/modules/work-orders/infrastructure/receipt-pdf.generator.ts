@@ -50,7 +50,14 @@ export interface ReceiptData extends WorkOrderPdfBase {
     functionalNotes?: string | null;
   };
   estimatedDeliveryDate?: string | null;
-  photo?: { content: Buffer; mimeType: string };
+  /** Fotografías de recepción (todas las cargadas; sólo JPG/PNG se pueden incrustar). */
+  photos?: PdfPhoto[];
+}
+
+/** Imagen para incrustar en un PDF. */
+export interface PdfPhoto {
+  content: Buffer;
+  mimeType: string;
 }
 
 export interface QuotationPdfData extends WorkOrderPdfBase {
@@ -79,12 +86,18 @@ export interface ReadyForPickupPdfData extends WorkOrderPdfBase {
     receivedByDocument?: string | null;
     deliveredBy?: string | null;
   } | null;
+  /** Fotografías de la entrega (sólo cuando ya se registró). */
+  photos?: PdfPhoto[];
 }
 
 const PRIMARY = '#0f4c81';
 const MUTED = '#6b7280';
-/** Caja máxima de la foto de recepción (puntos PDF; A4 = 595 x 842). */
-const PHOTO_BOX = { width: 220, height: 150 };
+/** Cuadrícula de fotografías: columnas, separación y alto máximo de cada foto (puntos PDF; A4 = 595 x 842). */
+const PHOTO_COLUMNS = 3;
+const PHOTO_GAP = 10;
+const PHOTO_MAX_HEIGHT = 120;
+/** pdfkit sólo incrusta JPEG y PNG. */
+const PDF_IMAGE_TYPES = ['image/jpeg', 'image/png'];
 /** Alto aproximado del título de sección (moveDown + texto + línea). */
 const SECTION_HEIGHT = 34;
 /** Alto reservado para las políticas de garantía + líneas de firma del pie. */
@@ -120,17 +133,7 @@ export class ReceiptPdfGenerator {
 
       this.accessoriesSection(doc, data.accessories, 'Accesorios recibidos');
 
-      if (data.photo && ['image/jpeg', 'image/png'].includes(data.photo.mimeType)) {
-        // Una foto dañada (cabecera válida, contenido corrupto) NO debe impedir registrar el ingreso:
-        // se omite del PDF y queda igualmente guardada como adjunto.
-        try {
-          // openImage (API pública de pdfkit, ausente en @types/pdfkit) valida la imagen antes de dibujar.
-          const image = (doc as Doc & { openImage(src: Buffer): ImageSrc }).openImage(data.photo.content);
-          this.photo(doc, image);
-        } catch (error) {
-          this.logger.warn({ code: data.code, err: error }, 'No se pudo incrustar la foto en el comprobante');
-        }
-      }
+      this.photoGrid(doc, 'Fotografías del equipo al ingreso', data.photos ?? [], data.code);
 
       this.footer(
         doc,
@@ -228,6 +231,7 @@ export class ReceiptPdfGenerator {
           .fontSize(16)
           .text(`VALOR COBRADO: ${data.delivery.amountCharged}`);
         doc.fillColor('black');
+        this.photoGrid(doc, 'Fotografía de la entrega', data.photos ?? [], data.code);
       } else if (data.quotation) {
         this.section(doc, 'Servicio cotizado');
         doc.font('Helvetica').fontSize(10).fillColor('black').text(data.quotation.description);
@@ -338,22 +342,70 @@ export class ReceiptPdfGenerator {
   }
 
   /**
-   * Dibuja la foto en el flujo del documento. pdfkit no mueve el cursor de
-   * forma fiable al usar `fit`, por eso se calcula el tamaño, se posiciona
-   * explícitamente y se avanza `doc.y`. Título y foto van juntos: si no caben
-   * en la página actual, pasan a la siguiente (nunca se cortan ni se solapan).
+   * Dibuja TODAS las fotos en una cuadrícula de 3 columnas, escaladas para caber
+   * en su celda sin deformarse. pdfkit no mueve el cursor de forma fiable con
+   * imágenes, así que cada fila se posiciona explícitamente y se avanza `doc.y`.
+   * El título va junto con la primera fila y ninguna fila se corta entre páginas.
+   * Una foto dañada o en un formato que pdfkit no admite (p. ej. WEBP) no impide
+   * generar el PDF: se omite y se indica con una nota (sigue guardada como adjunto).
    */
-  private photo(doc: Doc, image: ImageSrc): void {
-    const scale = Math.min(PHOTO_BOX.width / image.width, PHOTO_BOX.height / image.height);
-    const width = image.width * scale;
-    const height = image.height * scale;
-    this.ensureSpace(doc, SECTION_HEIGHT + height);
-    this.section(doc, 'Fotografía de recepción');
-    const x = doc.page.margins.left;
-    const y = doc.y + 4;
-    doc.image(image, x, y, { width, height });
-    doc.x = x;
-    doc.y = y + height;
+  private photoGrid(doc: Doc, title: string, photos: PdfPhoto[], code: string): void {
+    if (photos.length === 0) return;
+    const images: ImageSrc[] = [];
+    let skipped = 0;
+    for (const photo of photos) {
+      if (!PDF_IMAGE_TYPES.includes(photo.mimeType)) {
+        skipped += 1;
+        continue;
+      }
+      try {
+        // openImage (API pública de pdfkit, ausente en @types/pdfkit) valida la imagen antes de dibujar.
+        images.push((doc as Doc & { openImage(src: Buffer): ImageSrc }).openImage(photo.content));
+      } catch (error) {
+        skipped += 1;
+        this.logger.warn({ code, err: error }, 'No se pudo incrustar una foto en el PDF');
+      }
+    }
+
+    const left = doc.page.margins.left;
+    const contentWidth = doc.page.width - left - doc.page.margins.right;
+    const cellWidth = (contentWidth - PHOTO_GAP * (PHOTO_COLUMNS - 1)) / PHOTO_COLUMNS;
+
+    for (let start = 0; start < images.length; start += PHOTO_COLUMNS) {
+      const row = images.slice(start, start + PHOTO_COLUMNS);
+      const sizes = row.map((image) => {
+        const scale = Math.min(cellWidth / image.width, PHOTO_MAX_HEIGHT / image.height);
+        return { width: image.width * scale, height: image.height * scale };
+      });
+      const rowHeight = Math.max(...sizes.map((s) => s.height));
+      this.ensureSpace(doc, (start === 0 ? SECTION_HEIGHT : 0) + rowHeight + PHOTO_GAP);
+      if (start === 0) this.section(doc, title);
+      const y = doc.y + 4;
+      row.forEach((image, index) => {
+        const { width, height } = sizes[index];
+        const x = left + index * (cellWidth + PHOTO_GAP) + (cellWidth - width) / 2;
+        doc.image(image, x, y + (rowHeight - height) / 2, { width, height });
+      });
+      doc.x = left;
+      doc.y = y + rowHeight + PHOTO_GAP;
+    }
+
+    if (skipped > 0) {
+      if (images.length === 0) {
+        this.ensureSpace(doc, SECTION_HEIGHT + 20);
+        this.section(doc, title);
+      }
+      doc
+        .font('Helvetica-Oblique')
+        .fontSize(8)
+        .fillColor(MUTED)
+        .text(
+          `${skipped} fotografía(s) no se pudieron incluir en este documento (formato no compatible o archivo dañado); se conservan como adjuntos de la orden.`,
+          left,
+          doc.y,
+        );
+      doc.fillColor('black');
+    }
   }
 
   /** Agrega una página si el bloque siguiente no cabe en el espacio restante. */

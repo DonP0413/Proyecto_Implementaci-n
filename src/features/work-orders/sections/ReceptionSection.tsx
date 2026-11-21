@@ -15,7 +15,7 @@ import { Alert, Card, DataRow } from '../../../components/ui/Feedback';
 import { Input, Select, Textarea } from '../../../components/ui/FormField';
 import { Modal } from '../../../components/ui/Modal';
 import { getErrorMessage } from '../../../lib/errors';
-import { formatDate, formatDateTime } from '../../../lib/format';
+import { formatDate, formatDateTime, toDateInput } from '../../../lib/format';
 import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../stores/toastStore';
 import { StatusBadge } from '../components/StatusBadge';
@@ -141,7 +141,13 @@ function EditIntakeModal({ wo, onClose }: { wo: WorkOrderDetail; onClose: () => 
           <Input label="Correo electrónico" type="email" required error={errors.client?.email?.message} {...register('client.email')} />
           <Input label="Teléfono" type="tel" error={errors.client?.phone?.message} {...register('client.phone')} />
           <Input label="Dirección" error={errors.client?.address?.message} {...register('client.address')} />
-          <Input label="Fecha estimada de entrega" type="date" error={errors.estimatedDeliveryDate?.message} {...register('estimatedDeliveryDate')} />
+          <Input
+            label="Fecha estimada de entrega"
+            type="date"
+            min={toDateInput(new Date(wo.receivedAt))}
+            error={errors.estimatedDeliveryDate?.message}
+            {...register('estimatedDeliveryDate')}
+          />
         </div>
 
         <h3 className="subheading">2. Datos del equipo</h3>

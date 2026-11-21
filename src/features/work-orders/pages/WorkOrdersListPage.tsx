@@ -19,6 +19,7 @@ export function WorkOrdersListPage() {
   const [filters, setFilters] = useState<Filters>({
     page: 1,
     limit: 20,
+    code: params.get('code') ?? undefined,
     clientId: params.get('clientId') ?? undefined,
     equipmentId: params.get('equipmentId') ?? undefined,
     status: (params.get('status')?.split(',').filter(Boolean) as WorkOrderStatus[] | undefined) ?? undefined,

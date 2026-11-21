@@ -124,6 +124,15 @@ export const newWorkOrderSchema = z
   })
   .superRefine((values, ctx) => {
     validateExtraSpecs(values.extraSpecs, ctx);
+    // La entrega estimada no puede ser anterior al día de ingreso.
+    const receivedDay = values.receivedAt?.slice(0, 10);
+    if (values.estimatedDeliveryDate && receivedDay && values.estimatedDeliveryDate < receivedDay) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['estimatedDeliveryDate'],
+        message: 'La fecha estimada de entrega no puede ser anterior a la fecha de ingreso',
+      });
+    }
     if (values.clientMode === 'existing') {
       if (!values.clientId) ctx.addIssue({ code: 'custom', path: ['clientId'], message: 'Seleccione un cliente' });
       return;

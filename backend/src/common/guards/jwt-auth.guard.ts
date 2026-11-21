@@ -10,6 +10,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/auth.decorators';
+import { UsersRepository } from '../../modules/users/users.repository';
 import type { AuthUser, JwtPayload } from '../auth/auth-user.interface';
 import { DOWNLOAD_AUDIENCE, DOWNLOADABLE_PATH, type DownloadTokenPayload } from '../auth/download-link';
 
@@ -19,6 +20,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwtService: JwtService,
     private readonly reflector: Reflector,
     private readonly config: ConfigService,
+    private readonly users: UsersRepository,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -31,22 +33,38 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request & { user?: AuthUser }>();
     const token = this.extractToken(request);
     if (!token) {
-      if (await this.acceptDownloadLink(request)) return true;
+      if (await this.acceptDownloadLink(request)) return this.assertActiveUser(request);
       throw new UnauthorizedException('Token de acceso requerido');
     }
 
+    let payload: JwtPayload;
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
-      request.user = {
-        id: payload.sub,
-        username: payload.username ?? payload.email ?? '',
-        fullName: payload.name,
-        role: payload.role,
-      };
-      return true;
+      payload = await this.jwtService.verifyAsync<JwtPayload>(token);
     } catch {
       throw new UnauthorizedException('Token inválido o expirado');
     }
+    request.user = {
+      id: payload.sub,
+      username: payload.username ?? payload.email ?? '',
+      fullName: payload.name,
+      role: payload.role,
+    };
+    return this.assertActiveUser(request);
+  }
+
+  /**
+   * El token sólo prueba quién inició sesión. En cada petición se confirma en la
+   * base que el usuario sigue activo y se toma su rol ACTUAL: si el administrador
+   * lo desactiva o le cambia el rol, la sesión abierta deja de servir o se ajusta
+   * de inmediato (antes seguía funcionando hasta que el token expiraba).
+   */
+  private async assertActiveUser(request: Request & { user?: AuthUser }): Promise<true> {
+    const user = request.user ? await this.users.findById(request.user.id) : null;
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Su usuario fue desactivado. Comuníquese con el administrador');
+    }
+    request.user = { id: user.id, username: user.username, fullName: user.fullName, role: user.role };
+    return true;
   }
 
   /** Enlace temporal de descarga: sólo GET, sólo la ruta para la que se emitió. */

@@ -241,3 +241,12 @@ describe('validación de tipos de dato', () => {
     expect(withSerial('SN 123')).toBe(false);
   });
 });
+
+describe('fecha estimada de entrega', () => {
+  it('no puede ser anterior a la fecha de ingreso', () => {
+    const before = newWorkOrderSchema.safeParse({ ...base, receivedAt: '2026-11-08T09:30', estimatedDeliveryDate: '2026-11-05' });
+    expect(before.success).toBe(false);
+    expect(before.error?.issues.some((i) => i.path.join('.') === 'estimatedDeliveryDate')).toBe(true);
+    expect(newWorkOrderSchema.safeParse({ ...base, receivedAt: '2026-11-08T09:30', estimatedDeliveryDate: '2026-11-08' }).success).toBe(true);
+  });
+});

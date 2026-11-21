@@ -79,6 +79,90 @@ describe('Flujo de orden de trabajo (e2e)', () => {
     );
   });
 
+  it('corrige los hallazgos de la exploración funcional', async () => {
+    const auth = { Authorization: `Bearer ${token}` };
+
+    // 1. Búsqueda sin distinguir tildes, ñ ni mayúsculas.
+    await request(http)
+      .post('/api/v1/clients')
+      .set(auth)
+      .send({ fullName: 'Ángela Muñoz Peña', documentId: '1799999999', email: 'angela@example.com' })
+      .expect(201);
+    for (const q of ['MUÑOZ', 'munoz', 'ángela', 'PENA']) {
+      const found = await request(http)
+        .get(`/api/v1/clients?q=${encodeURIComponent(q)}`)
+        .set(auth)
+        .expect(200);
+      expect({ q, total: found.body.items.length }).toEqual({ q, total: 1 });
+    }
+
+    const types = await request(http).get('/api/v1/equipment-types').set(auth).expect(200);
+    const typeId = types.body[0].id as number;
+    const order = (extra: Record<string, unknown>) =>
+      JSON.stringify({
+        equipment: {
+          equipmentTypeId: typeId,
+          brand: 'Epson',
+          model: 'L3150',
+          serialNumber: `EPS${Date.now()}`,
+          technicalSpecs: {},
+        },
+        reportedIssue: 'No imprime',
+        reception: { powerStatus: 'SI', physicalCondition: 'BUENO' },
+        accessories: [],
+        ...extra,
+      });
+
+    // 4. "Cliente nuevo" con cédula existente: reutiliza el cliente SIN cambiarle el nombre.
+    await request(http)
+      .post('/api/v1/work-orders')
+      .set(auth)
+      .field(
+        'data',
+        order({ client: { fullName: 'Otro Nombre', documentId: '1799999999', email: 'nuevo@example.com' } }),
+      )
+      .expect(201);
+    const reused = await request(http).get('/api/v1/clients?q=1799999999').set(auth).expect(200);
+    expect(reused.body.items[0].fullName).toBe('Ángela Muñoz Peña');
+    expect(reused.body.items[0].email).toBe('nuevo@example.com');
+
+    // 2. La fecha estimada de entrega no puede ser anterior a la de ingreso.
+    const day = 86_400_000;
+    await request(http)
+      .post('/api/v1/work-orders')
+      .set(auth)
+      .field(
+        'data',
+        order({
+          clientId: reused.body.items[0].id,
+          receivedAt: new Date(Date.now() - 2 * day).toISOString(),
+          estimatedDeliveryDate: new Date(Date.now() - 5 * day).toISOString().slice(0, 10),
+        }),
+      )
+      .expect(400);
+
+    // 3. Un usuario desactivado pierde el acceso de inmediato, aunque su sesión siga abierta.
+    const ana = await request(http)
+      .post('/api/v1/auth/login')
+      .send({ username: 'ana.torres', password: 'Clave2026' })
+      .expect(200);
+    const anaAuth = { Authorization: `Bearer ${ana.body.accessToken}` };
+    await request(http).get('/api/v1/work-orders').set(anaAuth).expect(200);
+    const users = await request(http).get('/api/v1/users').set(auth).expect(200);
+    const anaId = users.body.find((u: { username: string }) => u.username === 'ana.torres').id as string;
+    await request(http).patch(`/api/v1/users/${anaId}`).set(auth).send({ isActive: false }).expect(200);
+    const blocked = await request(http).get('/api/v1/work-orders').set(anaAuth).expect(401);
+    expect(blocked.body.message).toContain('desactivado');
+    await request(http).patch(`/api/v1/users/${anaId}`).set(auth).send({ isActive: true }).expect(200);
+
+    // 6. Mensaje "no encontrado" con redacción neutra.
+    const missing = await request(http)
+      .get('/api/v1/work-orders/by-code/PT-2026-999999')
+      .set(auth)
+      .expect(404);
+    expect(missing.body.message).toBe('No se encontró orden de trabajo (PT-2026-999999)');
+  });
+
   it('recorre el ciclo completo de una reparación', async () => {
     const auth = { Authorization: `Bearer ${token}` };
     const types = await request(http).get('/api/v1/equipment-types').set(auth).expect(200);
@@ -194,6 +278,22 @@ describe('Flujo de orden de trabajo (e2e)', () => {
       .expect(200);
     const ready = await pdf('ready-pdf');
     expect(ready.headers['content-disposition']).toContain('Equipo_Listo_Para_Entregar_PT-');
+
+    // Un accesorio de OTRA orden se rechaza (antes se ignoraba en silencio).
+    await request(http)
+      .post(`/api/v1/work-orders/${id}/delivery`)
+      .set(auth)
+      .field(
+        'data',
+        JSON.stringify({
+          workSummary: 'Se reemplazó el puerto de carga',
+          amountCharged: 35.5,
+          returnCondition: 'Equipo funcional',
+          receivedByName: 'Cliente Prueba',
+          returnedAccessoryIds: ['11111111-1111-4111-8111-111111111111'],
+        }),
+      )
+      .expect(400);
 
     const delivered = await request(http)
       .post(`/api/v1/work-orders/${id}/delivery`)
