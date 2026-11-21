@@ -19,7 +19,8 @@ export abstract class DomainError extends Error {
 export class NotFoundError extends DomainError {
   readonly httpStatus = 404;
   constructor(entity: string, identifier: string) {
-    super(`${entity} no encontrado (${identifier})`, 'NOT_FOUND', { entity, identifier });
+    // Redacción neutra: "Orden de trabajo no encontrado" tenía mal el género.
+    super(`No se encontró ${entity.toLowerCase()} (${identifier})`, 'NOT_FOUND', { entity, identifier });
   }
 }
 

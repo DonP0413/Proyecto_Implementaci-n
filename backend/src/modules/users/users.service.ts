@@ -20,12 +20,12 @@ export class UsersService {
   ) {}
 
   async create(dto: CreateUserDto): Promise<UserResponseDto> {
-    if (await this.users.existsByEmail(dto.email)) {
-      throw new ConflictError('Ya existe un usuario con ese correo', 'USER_EMAIL_TAKEN');
+    if (await this.users.existsByUsername(dto.username)) {
+      throw new ConflictError('Ya existe ese nombre de usuario', 'USERNAME_TAKEN');
     }
     const user = this.users.create({
       fullName: dto.fullName,
-      email: dto.email,
+      username: dto.username,
       role: dto.role,
       passwordHash: await this.hasher.hash(dto.password),
       isActive: true,

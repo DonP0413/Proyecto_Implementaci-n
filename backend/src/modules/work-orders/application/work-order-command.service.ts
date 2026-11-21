@@ -7,7 +7,7 @@
  *   - createQuotation   : registra cotización y pasa a COTIZACION_GENERADA (RF 6).
  *   - registerDelivery  : registro de entrega (RF 7).
  * Cada caso de uso es UNA transacción: si algo falla, no se guarda nada.
- * Al cliente se le entregan documentos PDF (ver ReceiptService), no correos.
+ * Al cliente se le entregan documentos PDF (ver ReceiptService).
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -79,6 +79,7 @@ export class WorkOrderCommandService {
       throw new InvalidInputError('Debe seleccionar un cliente o registrar sus datos', 'CLIENT_REQUIRED');
     }
     const receivedAt = this.resolveReceivedAt(dto.receivedAt);
+    this.assertEstimatedDelivery(receivedAt, dto.estimatedDeliveryDate);
     const validPhotos = this.attachments.validateAll(photos, AttachmentCategory.RECEPTION_PHOTO);
     if (dto.assignedTechnicianId) await this.assertTechnician(dto.assignedTechnicianId);
 
@@ -163,7 +164,7 @@ export class WorkOrderCommandService {
         );
 
         const aggregate = await this.workOrders.findForClientDocuments(wo.id, manager);
-        const pdf = await this.receipts.generate(aggregate!, validPhotos[0]);
+        const pdf = await this.receipts.generate(aggregate!, validPhotos);
         await this.attachments.persist(
           {
             workOrderId: wo.id,
@@ -206,6 +207,7 @@ export class WorkOrderCommandService {
     await this.dataSource.transaction(async (manager) => {
       const wo = await this.lock(id, manager);
       WorkOrderStateMachine.assertTransition(wo.status, dto.status);
+      WorkOrderStateMachine.assertNote(wo.status, dto.status, dto.note);
       if (DEDICATED_TRANSITION_TARGETS.includes(dto.status)) {
         throw new BusinessRuleError(
           dto.status === WorkOrderStatus.COTIZACION_GENERADA
@@ -248,6 +250,7 @@ export class WorkOrderCommandService {
             { status: wo.status },
           );
         }
+        this.assertEstimatedDelivery(wo.receivedAt, dto.estimatedDeliveryDate);
 
         const before = await this.workOrders.findForClientDocuments(id, manager);
         if (!before) throw new NotFoundError('Orden de trabajo', id);
@@ -452,6 +455,16 @@ export class WorkOrderCommandService {
         const existing = await this.workOrders.findForClientDocuments(id, manager);
         if (existing?.deliveryRecord)
           throw new ConflictError('La entrega ya fue registrada', 'DELIVERY_EXISTS');
+        // Sólo se pueden marcar como devueltos accesorios de ESTA orden (antes se ignoraban en silencio).
+        const ownAccessoryIds = new Set((existing?.accessories ?? []).map((a) => a.id));
+        const foreign = (dto.returnedAccessoryIds ?? []).filter((accId) => !ownAccessoryIds.has(accId));
+        if (foreign.length > 0) {
+          throw new InvalidInputError(
+            'Hay accesorios devueltos que no pertenecen a esta orden',
+            'ACCESSORY_NOT_IN_WORK_ORDER',
+            { accessoryIds: foreign },
+          );
+        }
 
         const deliveredAt = new Date();
         await this.workOrders.saveDelivery(
@@ -535,6 +548,19 @@ export class WorkOrderCommandService {
       throw new InvalidInputError('La fecha de ingreso no puede ser futura', 'RECEIVED_AT_IN_FUTURE');
     }
     return receivedAt;
+  }
+
+  /** La fecha estimada de entrega no puede ser anterior al día de ingreso (en la zona horaria del taller). */
+  private assertEstimatedDelivery(receivedAt: Date, estimated: string | null | undefined): void {
+    if (!estimated) return;
+    const receivedDay = toLocalDate(receivedAt, this.config.get<string>('workOrders.timezone'));
+    if (estimated < receivedDay) {
+      throw new InvalidInputError(
+        `La fecha estimada de entrega no puede ser anterior a la fecha de ingreso (${receivedDay})`,
+        'ESTIMATED_DELIVERY_BEFORE_RECEIVED',
+        { receivedDay, estimated },
+      );
+    }
   }
 
   private async assertTechnician(userId: string): Promise<void> {

@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
+import { clientsApi } from '../../../api/endpoints';
 import type { Client } from '../../../api/types';
 import { Button } from '../../../components/ui/Button';
 import { Alert, Card, Spinner } from '../../../components/ui/Feedback';
@@ -98,6 +99,34 @@ export function NewWorkOrderPage() {
     setValue('equipment.technicalSpecs', {});
   }, [typeId, setValue]);
 
+  // "Cliente nuevo" con una cédula ya registrada: se avisa y se ofrece usar ese cliente
+  // (el sistema lo reutiliza igual, sin cambiar su nombre; sólo actualiza su contacto).
+  const newClientDocument = (watch('client.documentId') ?? '').trim();
+  const [existingByDocument, setExistingByDocument] = useState<Client | null>(null);
+  useEffect(() => {
+    setExistingByDocument(null);
+    if (clientMode !== 'new' || !/^(\d{10}|\d{13})$/.test(newClientDocument)) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      clientsApi
+        .search(newClientDocument, 1, 5)
+        .then((page) => {
+          if (!cancelled) setExistingByDocument(page.items.find((c) => c.documentId === newClientDocument) ?? null);
+        })
+        .catch(() => undefined);
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [clientMode, newClientDocument]);
+
+  const selectExistingClient = (client: Client) => {
+    setValue('clientMode', 'existing');
+    setSelectedClient(client);
+    setValue('clientId', client.id, { shouldValidate: true });
+  };
+
   // Paso de confirmación: el registro genera el comprobante de ingreso (PDF).
   const [pendingValues, setPendingValues] = useState<NewWorkOrderFormValues | null>(null);
   const missingExistingDocument = clientMode === 'existing' && !!selectedClient && !selectedClient.documentId;
@@ -177,10 +206,25 @@ export function NewWorkOrderPage() {
         ) : (
           <div className="grid-3">
             <Input label="Nombre completo" required placeholder="Ej.: María Fernanda Pérez" error={errors.client?.fullName?.message} {...register('client.fullName')} />
-            <Input label="Cédula / RUC" required placeholder="Ej.: 1718123456" error={errors.client?.documentId?.message} {...register('client.documentId')} />
+            <Input label="Cédula / RUC" required inputMode="numeric" maxLength={13} placeholder="Ej.: 1718123456" error={errors.client?.documentId?.message} {...register('client.documentId')} />
             <Input label="Correo electrónico" type="email" required placeholder="Ej.: maria.perez@gmail.com" error={errors.client?.email?.message} {...register('client.email')} />
             <Input label="Teléfono" type="tel" placeholder="Ej.: 0991234567" error={errors.client?.phone?.message} {...register('client.phone')} />
             <Input label="Dirección" placeholder="Ej.: Av. Amazonas N34-12 y Naciones Unidas" error={errors.client?.address?.message} {...register('client.address')} />
+            {existingByDocument && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Alert kind="warning">
+                  <div className="review-head">
+                    <span>
+                      Ya existe un cliente con la cédula / RUC <strong>{existingByDocument.documentId}</strong>:{' '}
+                      <strong>{existingByDocument.fullName}</strong>. Se usará ese cliente (su nombre no cambia).
+                    </span>
+                    <Button type="button" size="sm" onClick={() => selectExistingClient(existingByDocument)}>
+                      Usar este cliente
+                    </Button>
+                  </div>
+                </Alert>
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -309,7 +353,14 @@ export function NewWorkOrderPage() {
             options={(technicians ?? []).map((t) => ({ value: t.id, label: t.fullName }))}
             {...register('assignedTechnicianId')}
           />
-          <Input label="Fecha estimada de entrega" type="date" hint="Fecha que se comunica al cliente" {...register('estimatedDeliveryDate')} />
+          <Input
+            label="Fecha estimada de entrega"
+            type="date"
+            hint="Fecha que se comunica al cliente"
+            min={(watch('receivedAt') ?? '').slice(0, 10) || undefined}
+            error={errors.estimatedDeliveryDate?.message}
+            {...register('estimatedDeliveryDate')}
+          />
         </div>
       </Card>
 

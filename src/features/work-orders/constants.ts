@@ -19,6 +19,22 @@ export const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   ENTREGADO: 'Entregado',
 };
 
+/** Pestañas del detalle de la orden. */
+export type WorkOrderTab = 'reception' | 'tracking' | 'quotation' | 'technical' | 'delivery';
+
+/**
+ * Siguiente paso del camino normal según el estado, y en qué pestaña se hace.
+ * Se usa para guiar al personal desde Seguimiento (aviso "Siguiente paso" con botón a esa pestaña).
+ */
+export const NEXT_STEP: Record<WorkOrderStatus, { tab: WorkOrderTab; text: string } | null> = {
+  INGRESADO: { tab: 'tracking', text: 'Pase la orden a "En revisión" para diagnosticar el equipo' },
+  EN_REVISION: { tab: 'quotation', text: 'Registre la cotización y genere su PDF' },
+  COTIZACION_GENERADA: { tab: 'tracking', text: 'Cuando el cliente apruebe, pase la orden a "En reparación"' },
+  EN_REPARACION: { tab: 'tracking', text: 'Al terminar, pase la orden a "Listo para retirar"' },
+  LISTO_PARA_RETIRAR: { tab: 'delivery', text: 'Registre la entrega y genere el comprobante de entrega' },
+  ENTREGADO: null,
+};
+
 export const STATUS_TONES: Record<WorkOrderStatus, string> = {
   INGRESADO: 'gray',
   EN_REVISION: 'blue',

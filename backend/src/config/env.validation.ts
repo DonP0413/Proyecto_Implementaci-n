@@ -40,8 +40,13 @@ export const envValidationSchema = Joi.object({
   THROTTLE_LIMIT: Joi.number().integer().min(1).default(120),
   METRICS_TOKEN: Joi.string().allow('').optional(),
 
+  // Usuario del administrador inicial. ADMIN_EMAIL sólo se acepta por compatibilidad
+  // con configuraciones anteriores (mismo significado).
+  ADMIN_USER: Joi.string()
+    .pattern(/^[a-zA-Z0-9._@-]{3,60}$/)
+    .optional(),
   ADMIN_EMAIL: Joi.string()
-    .email({ tlds: { allow: false } })
+    .pattern(/^[a-zA-Z0-9._@-]{3,60}$/)
     .optional(),
   ADMIN_PASSWORD: Joi.string().min(8).optional(),
   ADMIN_NAME: Joi.string().optional(),

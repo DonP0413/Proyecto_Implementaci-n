@@ -3,7 +3,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import { workOrderPdfPaths } from '../../../api/endpoints';
 import {
   EXTRA_SPEC_PREFIX,
   MAX_EXTRA_SPECS,
@@ -16,12 +15,11 @@ import { Alert, Card, DataRow } from '../../../components/ui/Feedback';
 import { Input, Select, Textarea } from '../../../components/ui/FormField';
 import { Modal } from '../../../components/ui/Modal';
 import { getErrorMessage } from '../../../lib/errors';
-import { formatDate, formatDateTime } from '../../../lib/format';
+import { formatDate, formatDateTime, toDateInput } from '../../../lib/format';
 import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../stores/toastStore';
 import { StatusBadge } from '../components/StatusBadge';
 import { AttachmentGallery } from '../components/AttachmentGallery';
-import { PdfButton } from '../components/PdfButton';
 import { fieldLabel, groupFields } from '../components/TechnicalSpecsFields';
 import { PHYSICAL_CONDITION_OPTIONS, POWER_STATUS_OPTIONS } from '../constants';
 import { useEquipmentTypes, useUpdateIntake, useWorkOrders } from '../hooks';
@@ -139,11 +137,17 @@ function EditIntakeModal({ wo, onClose }: { wo: WorkOrderDetail; onClose: () => 
         <h3 className="subheading">1. Datos del cliente</h3>
         <div className="grid-2">
           <Input label="Nombre completo" required error={errors.client?.fullName?.message} {...register('client.fullName')} />
-          <Input label="Cédula / RUC" required error={errors.client?.documentId?.message} {...register('client.documentId')} />
+          <Input label="Cédula / RUC" required inputMode="numeric" maxLength={13} error={errors.client?.documentId?.message} {...register('client.documentId')} />
           <Input label="Correo electrónico" type="email" required error={errors.client?.email?.message} {...register('client.email')} />
           <Input label="Teléfono" type="tel" error={errors.client?.phone?.message} {...register('client.phone')} />
           <Input label="Dirección" error={errors.client?.address?.message} {...register('client.address')} />
-          <Input label="Fecha estimada de entrega" type="date" error={errors.estimatedDeliveryDate?.message} {...register('estimatedDeliveryDate')} />
+          <Input
+            label="Fecha estimada de entrega"
+            type="date"
+            min={toDateInput(new Date(wo.receivedAt))}
+            error={errors.estimatedDeliveryDate?.message}
+            {...register('estimatedDeliveryDate')}
+          />
         </div>
 
         <h3 className="subheading">2. Datos del equipo</h3>
@@ -231,19 +235,6 @@ export function ReceptionSection({ wo }: { wo: WorkOrderDetail }) {
 
   return (
     <div className="grid-2">
-      <div className="span-2">
-        <Alert kind="info">
-          <div className="review-head">
-            <span>
-              <strong>PDF de ingreso:</strong> comprobante con los datos del cliente, el equipo, el estado de recepción y las políticas
-              de garantía, para imprimir y entregar al cliente.
-            </span>
-            <PdfButton variant="primary" path={workOrderPdfPaths.reception(wo.id)}>
-              Generar PDF de ingreso
-            </PdfButton>
-          </div>
-        </Alert>
-      </div>
       {canEditIntake && (
         <div className="span-2">
           <Alert kind="info">

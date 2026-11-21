@@ -3,7 +3,7 @@ import { useAuthStore } from './authStore';
 const user = (role: 'ADMIN' | 'RECEPCIONISTA' | 'TECNICO') => ({
   id: '1',
   fullName: 'X',
-  email: 'x@x.com',
+  username: 'x',
   role,
   isActive: true,
   lastLoginAt: null,

@@ -36,6 +36,35 @@ describe('WorkOrderStateMachine', () => {
       S.EN_REPARACION,
       S.LISTO_PARA_RETIRAR,
     ]);
-    expect(WorkOrderStateMachine.manualTransitions(S.LISTO_PARA_RETIRAR)).toEqual([S.EN_REPARACION]);
+    expect(WorkOrderStateMachine.manualTransitions(S.LISTO_PARA_RETIRAR)).toEqual([
+      S.EN_REPARACION,
+      S.EN_REVISION,
+    ]);
+  });
+});
+
+describe('Nota obligatoria en caminos alternativos', () => {
+  it.each([
+    [S.EN_REVISION, S.EN_REPARACION],
+    [S.EN_REVISION, S.LISTO_PARA_RETIRAR],
+    [S.COTIZACION_GENERADA, S.LISTO_PARA_RETIRAR],
+    [S.COTIZACION_GENERADA, S.EN_REVISION],
+    [S.EN_REPARACION, S.EN_REVISION],
+    [S.LISTO_PARA_RETIRAR, S.EN_REPARACION],
+    [S.LISTO_PARA_RETIRAR, S.EN_REVISION],
+  ])('%s -> %s exige un motivo', (from, to) => {
+    expect(WorkOrderStateMachine.notePrompt(from, to)).toEqual(expect.any(String));
+    expect(() => WorkOrderStateMachine.assertNote(from, to, undefined)).toThrow(BusinessRuleError);
+    expect(() => WorkOrderStateMachine.assertNote(from, to, '  ok  ')).toThrow('requiere una nota');
+    expect(() => WorkOrderStateMachine.assertNote(from, to, 'Equipo en garantía')).not.toThrow();
+  });
+
+  it.each([
+    [S.INGRESADO, S.EN_REVISION],
+    [S.COTIZACION_GENERADA, S.EN_REPARACION],
+    [S.EN_REPARACION, S.LISTO_PARA_RETIRAR],
+  ])('%s -> %s (camino normal) no exige nota', (from, to) => {
+    expect(WorkOrderStateMachine.notePrompt(from, to)).toBeNull();
+    expect(() => WorkOrderStateMachine.assertNote(from, to, undefined)).not.toThrow();
   });
 });

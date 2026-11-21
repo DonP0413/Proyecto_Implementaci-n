@@ -11,7 +11,7 @@ describe('AuthService', () => {
   const user = {
     id: 'u1',
     fullName: 'Ana',
-    email: 'ana@pintotech.ec',
+    username: 'ana.torres',
     role: UserRole.RECEPCIONISTA,
     isActive: true,
     passwordHash: 'hash',
@@ -20,7 +20,7 @@ describe('AuthService', () => {
     updatedAt: new Date(),
   } as UserEntity;
 
-  const users = { findByEmailWithPassword: jest.fn(), touchLastLogin: jest.fn() };
+  const users = { findByUsernameWithPassword: jest.fn(), touchLastLogin: jest.fn() };
   const hasher = { compare: jest.fn() };
   const jwt = { signAsync: jest.fn().mockResolvedValue('token') };
   const config = { get: jest.fn().mockReturnValue('8h') };
@@ -35,10 +35,10 @@ describe('AuthService', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('emite token con credenciales válidas', async () => {
-    users.findByEmailWithPassword.mockResolvedValue(user);
+    users.findByUsernameWithPassword.mockResolvedValue(user);
     hasher.compare.mockResolvedValue(true);
 
-    const result = await service.login({ email: user.email, password: 'Clave2026' });
+    const result = await service.login({ username: user.username, password: 'Clave2026' });
 
     expect(result.accessToken).toBe('token');
     expect(result.user).not.toHaveProperty('passwordHash');
@@ -49,25 +49,25 @@ describe('AuthService', () => {
   });
 
   it('rechaza contraseña incorrecta', async () => {
-    users.findByEmailWithPassword.mockResolvedValue(user);
+    users.findByUsernameWithPassword.mockResolvedValue(user);
     hasher.compare.mockResolvedValue(false);
-    await expect(service.login({ email: user.email, password: 'x' })).rejects.toBeInstanceOf(
+    await expect(service.login({ username: user.username, password: 'x' })).rejects.toBeInstanceOf(
       UnauthorizedError,
     );
   });
 
   it('rechaza usuario inactivo', async () => {
-    users.findByEmailWithPassword.mockResolvedValue({ ...user, isActive: false });
+    users.findByUsernameWithPassword.mockResolvedValue({ ...user, isActive: false });
     hasher.compare.mockResolvedValue(true);
-    await expect(service.login({ email: user.email, password: 'Clave2026' })).rejects.toBeInstanceOf(
+    await expect(service.login({ username: user.username, password: 'Clave2026' })).rejects.toBeInstanceOf(
       UnauthorizedError,
     );
   });
 
-  it('rechaza correo inexistente con el mismo mensaje', async () => {
-    users.findByEmailWithPassword.mockResolvedValue(null);
-    await expect(service.login({ email: 'x@x.com', password: 'y' })).rejects.toThrow(
-      'Correo o contraseña incorrectos',
+  it('rechaza usuario inexistente con el mismo mensaje', async () => {
+    users.findByUsernameWithPassword.mockResolvedValue(null);
+    await expect(service.login({ username: 'nadie', password: 'y' })).rejects.toThrow(
+      'Usuario o contraseña incorrectos',
     );
   });
 });

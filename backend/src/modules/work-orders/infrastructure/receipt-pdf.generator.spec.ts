@@ -37,7 +37,7 @@ describe('ReceiptPdfGenerator', () => {
       reportedIssue: 'x',
       reception: { powerStatus: 'Sí', physicalCondition: 'Bueno' },
       accessories: [],
-      photo: { content: corrupt, mimeType: 'image/jpeg' },
+      photos: [{ content: corrupt, mimeType: 'image/jpeg' }],
     });
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
   });
@@ -48,7 +48,11 @@ describe('ReceiptPdfGenerator', () => {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
       'base64',
     );
-    const data = (specCount: number) => ({
+    const data = (
+      specCount: number,
+      photoCount = 1,
+      extra: Array<{ content: Buffer; mimeType: string }> = [],
+    ) => ({
       company: { name: 'PINTOTECH' },
       code: 'PT-2026-000003',
       receivedAt: 'hoy',
@@ -63,7 +67,10 @@ describe('ReceiptPdfGenerator', () => {
       reportedIssue: 'x',
       reception: { powerStatus: 'Sí', physicalCondition: 'Bueno' },
       accessories: [],
-      photo: { content: png, mimeType: 'image/png' },
+      photos: [
+        ...Array.from({ length: photoCount }, () => ({ content: png, mimeType: 'image/png' })),
+        ...extra,
+      ],
     });
 
     /** Registra dónde se dibujó la foto y en qué altura se escribe cada texto. */
@@ -112,6 +119,52 @@ describe('ReceiptPdfGenerator', () => {
         after.forEach((t) => {
           if (t.page === images[0].page) expect(t.y).toBeGreaterThanOrEqual(imageBottom);
         });
+      } finally {
+        restore();
+      }
+    });
+
+    it('incluye TODAS las fotos cargadas (no sólo la primera) sin salirse de la página', async () => {
+      const { images, restore } = capture();
+      try {
+        await new ReceiptPdfGenerator().generate(data(3, 6));
+        expect(images).toHaveLength(6);
+        images.forEach((img) => expect(img.y + img.height).toBeLessThanOrEqual(img.pageBottom));
+      } finally {
+        restore();
+      }
+    });
+
+    it('omite las fotos WEBP (pdfkit no las admite) y lo indica con una nota', async () => {
+      const webp = Buffer.from('RIFF0000WEBPVP8 ', 'ascii');
+      const { images, texts, restore } = capture();
+      try {
+        await new ReceiptPdfGenerator().generate(data(3, 2, [{ content: webp, mimeType: 'image/webp' }]));
+        expect(images).toHaveLength(2);
+        expect(texts.some((t) => t.text.startsWith('1 fotografía(s) no se pudieron incluir'))).toBe(true);
+      } finally {
+        restore();
+      }
+    });
+
+    it('el comprobante de entrega incluye la foto de la entrega', async () => {
+      const { images, texts, restore } = capture();
+      try {
+        const base = data(0, 0);
+        await new ReceiptPdfGenerator().generateReadyForPickup({
+          ...base,
+          issuedAt: 'hoy',
+          delivery: {
+            deliveredAt: 'hoy',
+            workSummary: 'Cambio de batería',
+            amountCharged: '$85,50',
+            returnCondition: 'Funcional',
+            receivedByName: 'María Pérez',
+          },
+          photos: [{ content: png, mimeType: 'image/png' }],
+        });
+        expect(images).toHaveLength(1);
+        expect(texts.some((t) => t.text === 'FOTOGRAFÍA DE LA ENTREGA')).toBe(true);
       } finally {
         restore();
       }

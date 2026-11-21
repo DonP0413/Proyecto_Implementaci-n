@@ -1,4 +1,5 @@
 /** Objetivo: tablero con conteo por estado, búsqueda rápida por ID de trabajo e identidad PINTO TECH. */
+import { isAxiosError } from 'axios';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { workOrdersApi } from '../../api/endpoints';
@@ -31,10 +32,18 @@ export function DashboardPage() {
   const lookup = async (event: FormEvent) => {
     event.preventDefault();
     setLookupError(null);
+    const text = code.trim();
+    if (!text) return;
     try {
-      const found = await workOrdersApi.byCode(code.trim());
+      const found = await workOrdersApi.byCode(text);
       navigate(`/work-orders/${found.id}`);
     } catch (e) {
+      // Sin coincidencia exacta (p. ej. "000003" o parte del código): se abre el listado
+      // de órdenes con ese texto en el filtro "ID de trabajo", en lugar de mostrar "no encontrada".
+      if (isAxiosError(e) && e.response?.status === 404) {
+        navigate(`/work-orders?code=${encodeURIComponent(text)}`);
+        return;
+      }
       setLookupError(getErrorMessage(e));
     }
   };

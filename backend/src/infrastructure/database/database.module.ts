@@ -10,6 +10,7 @@ import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource, DataSourceOptions, EntityManager } from 'typeorm';
+import { normalizeForSearch, SEARCH_NORMALIZE_FN } from '../../common/database/search-normalize';
 import { prepareDatabase } from './database-bootstrap';
 
 /** Cola simple: cada transacción espera a que termine la anterior. */
@@ -47,6 +48,15 @@ const serializeTransactions = (manager: EntityManager): void => {
       dataSourceFactory: async (options?: DataSourceOptions) => {
         const dataSource = await new DataSource(options!).initialize();
         serializeTransactions(dataSource.manager);
+        // Búsquedas sin distinguir tildes, ñ ni mayúsculas (ver search-normalize.ts).
+        const sqlite = (
+          dataSource.driver as unknown as {
+            databaseConnection: {
+              function(name: string, options: object, fn: (v: unknown) => unknown): void;
+            };
+          }
+        ).databaseConnection;
+        sqlite.function(SEARCH_NORMALIZE_FN, { deterministic: true }, normalizeForSearch);
         return dataSource;
       },
     }),

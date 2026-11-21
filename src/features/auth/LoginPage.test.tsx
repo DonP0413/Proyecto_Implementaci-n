@@ -16,7 +16,7 @@ describe('LoginPage', () => {
       </MemoryRouter>,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
-    expect(await screen.findByText('Ingrese un correo válido')).toBeInTheDocument();
+    expect(await screen.findByText('Ingrese su usuario')).toBeInTheDocument();
     expect(screen.getByText('Ingrese su contraseña')).toBeInTheDocument();
   });
 
@@ -24,18 +24,18 @@ describe('LoginPage', () => {
     const spy = vi.spyOn(authApi, 'login').mockResolvedValue({
       accessToken: 'jwt',
       expiresIn: '8h',
-      user: { id: '1', fullName: 'Ana', email: 'ana@pt.ec', role: 'RECEPCIONISTA', isActive: true, lastLoginAt: null, createdAt: '' },
+      user: { id: '1', fullName: 'Ana', username: 'ana.torres', role: 'RECEPCIONISTA', isActive: true, lastLoginAt: null, createdAt: '' },
     });
     render(
       <MemoryRouter>
         <LoginPage />
       </MemoryRouter>,
     );
-    await userEvent.type(screen.getByLabelText('Correo electrónico'), 'ana@pt.ec');
+    await userEvent.type(screen.getByLabelText('Usuario'), 'ana.torres');
     await userEvent.type(screen.getByLabelText('Contraseña'), 'Clave2026');
     await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
 
     await waitFor(() => expect(useAuthStore.getState().token).toBe('jwt'));
-    expect(spy).toHaveBeenCalledWith('ana@pt.ec', 'Clave2026');
+    expect(spy).toHaveBeenCalledWith('ana.torres', 'Clave2026');
   });
 });

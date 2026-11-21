@@ -83,5 +83,7 @@ describe('ClientsService — fecha de ingreso', () => {
     );
     expect(saved.registeredAt).toBe('2024-01-05');
     expect(saved.email).toBe('ana@example.com');
+    // El nombre del cliente existente NO se sobrescribe con el escrito en el formulario.
+    expect(saved.fullName).toBe('Ana');
   });
 });

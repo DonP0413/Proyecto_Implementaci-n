@@ -37,7 +37,8 @@ export const configuration = () => ({
 
   /** Administrador inicial: se crea al arrancar si la base no tiene usuarios. */
   admin: {
-    email: process.env.ADMIN_EMAIL,
+    // ADMIN_EMAIL: configuraciones creadas antes del cambio a nombre de usuario.
+    username: process.env.ADMIN_USER ?? process.env.ADMIN_EMAIL,
     password: process.env.ADMIN_PASSWORD,
     name: process.env.ADMIN_NAME ?? 'Administrador',
   },

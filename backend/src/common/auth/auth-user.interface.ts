@@ -5,14 +5,16 @@ import type { UserRole } from '../../modules/users/domain/user-role.enum';
 
 export interface AuthUser {
   id: string;
-  email: string;
+  username: string;
   fullName: string;
   role: UserRole;
 }
 
 export interface JwtPayload {
   sub: string;
-  email: string;
+  username: string;
+  /** Tokens emitidos antes del cambio a nombre de usuario. */
+  email?: string;
   name: string;
   role: UserRole;
 }

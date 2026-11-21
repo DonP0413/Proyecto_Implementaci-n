@@ -191,3 +191,62 @@ describe('deliverySchema y quotationSchema (CA-032)', () => {
     if (result.success) expect(result.data.amountCharged).toBe(45.5);
   });
 });
+
+describe('validación de tipos de dato', () => {
+  const client = { fullName: 'Ana Pérez', documentId: '1718123456', email: 'ana@example.com' };
+  const ok = (patch: Record<string, unknown>) => clientSchema.safeParse({ ...client, ...patch }).success;
+
+  it('cédula de 10 dígitos o RUC de 13, sólo números', () => {
+    expect(ok({ documentId: '1718123456' })).toBe(true);
+    expect(ok({ documentId: '1790012345001' })).toBe(true);
+    expect(ok({ documentId: '17181234AB' })).toBe(false);
+    expect(ok({ documentId: '171812345' })).toBe(false);
+    expect(ok({ documentId: '17181234567' })).toBe(false);
+    expect(ok({ documentId: '1718-123456' })).toBe(false);
+  });
+
+  it('teléfono sólo con números (7 a 15 dígitos)', () => {
+    expect(ok({ phone: '0991234567' })).toBe(true);
+    expect(ok({ phone: '+593 99 123 4567' })).toBe(true);
+    expect(ok({ phone: '' })).toBe(true);
+    expect(ok({ phone: '099ABC4567' })).toBe(false);
+    expect(ok({ phone: '-------' })).toBe(false);
+  });
+
+  it('nombre del cliente con letras (admite empresas)', () => {
+    expect(ok({ fullName: 'Tecnología Andina S.A.' })).toBe(true);
+    expect(ok({ fullName: '12345' })).toBe(false);
+    expect(ok({ fullName: 'Ana <script>' })).toBe(false);
+  });
+
+  it('quien retira: nombre sin números y documento con el mismo formato que la cédula', () => {
+    const delivery = {
+      workSummary: 'Cambio de pantalla',
+      amountCharged: 10,
+      returnCondition: 'Funcional',
+      receivedByName: 'María José',
+      returnedAccessoryIds: [],
+    };
+    expect(deliverySchema.safeParse(delivery).success).toBe(true);
+    expect(deliverySchema.safeParse({ ...delivery, receivedByName: 'María 2' }).success).toBe(false);
+    expect(deliverySchema.safeParse({ ...delivery, receivedByDocument: 'ABC123' }).success).toBe(false);
+    expect(deliverySchema.safeParse({ ...delivery, receivedByDocument: '1718123456' }).success).toBe(true);
+  });
+
+  it('número de serie sin espacios', () => {
+    const withSerial = (serialNumber: string) =>
+      newWorkOrderSchema.safeParse({ ...base, equipment: { ...base.equipment, serialNumber } }).success;
+    expect(withSerial('5CD1234XYZ')).toBe(true);
+    expect(withSerial('SN-2026/01')).toBe(true);
+    expect(withSerial('SN 123')).toBe(false);
+  });
+});
+
+describe('fecha estimada de entrega', () => {
+  it('no puede ser anterior a la fecha de ingreso', () => {
+    const before = newWorkOrderSchema.safeParse({ ...base, receivedAt: '2026-11-08T09:30', estimatedDeliveryDate: '2026-11-05' });
+    expect(before.success).toBe(false);
+    expect(before.error?.issues.some((i) => i.path.join('.') === 'estimatedDeliveryDate')).toBe(true);
+    expect(newWorkOrderSchema.safeParse({ ...base, receivedAt: '2026-11-08T09:30', estimatedDeliveryDate: '2026-11-08' }).success).toBe(true);
+  });
+});

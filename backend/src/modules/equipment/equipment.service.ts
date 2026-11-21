@@ -1,7 +1,7 @@
 /**
  * Objetivo: casos de uso de equipos.
  * - normalizeSpecs: sólo acepta las claves definidas en el spec_schema del
- *   tipo (evita basura en JSONB), valida listas de opciones y rangos
+ *   tipo (evita datos inválidos en el JSON de especificaciones), valida listas de opciones y rangos
  *   numéricos, y admite hasta 10 especificaciones adicionales libres.
  * - resolveForWorkOrder: reutiliza el equipo si ya existe (mismo cliente,
  *   serie y marca) para conservar el historial de reparaciones.
@@ -24,7 +24,7 @@ const MAX_SPEC_LENGTH = 500;
 
 @Injectable()
 export class EquipmentService {
-  constructor(private readonly equipment: EquipmentRepository) {}
+  constructor(private readonly equipment: EquipmentRepository) { }
 
   async listTypes(): Promise<EquipmentTypeResponseDto[]> {
     return (await this.equipment.listActiveTypes()).map(EquipmentTypeResponseDto.from);
@@ -106,15 +106,15 @@ export class EquipmentService {
     let equipment =
       serial && !input.forceNewEquipment
         ? await this.equipment.findMatching(
-            {
-              clientId,
-              equipmentTypeId: type.id,
-              serialNumber: serial,
-              brand: input.brand,
-              model: input.model,
-            },
-            manager,
-          )
+          {
+            clientId,
+            equipmentTypeId: type.id,
+            serialNumber: serial,
+            brand: input.brand,
+            model: input.model,
+          },
+          manager,
+        )
         : null;
 
     if (equipment) {

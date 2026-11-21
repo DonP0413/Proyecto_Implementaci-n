@@ -12,7 +12,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { runMigrations } from './migration-runner';
 
 export interface AdminSeed {
-  email?: string;
+  username?: string;
   password?: string;
   name?: string;
 }
@@ -37,12 +37,12 @@ export const prepareDatabase = async (
 const seedAdmin = (db: BetterSqlite3.Database, admin: AdminSeed, log: (message: string) => void): void => {
   const { total } = db.prepare('SELECT count(*) AS total FROM users').get() as { total: number };
   if (total > 0) return;
-  if (!admin.email || !admin.password) {
-    log('[seed] No hay usuarios: defina ADMIN_EMAIL y ADMIN_PASSWORD para crear el administrador inicial.');
+  if (!admin.username || !admin.password) {
+    log('[seed] No hay usuarios: defina ADMIN_USER y ADMIN_PASSWORD para crear el administrador inicial.');
     return;
   }
   db.prepare(
-    `INSERT INTO users (id, full_name, email, password_hash, role) VALUES (?, ?, lower(?), ?, 'ADMIN')`,
-  ).run(randomUUID(), admin.name ?? 'Administrador', admin.email, bcrypt.hashSync(admin.password, 12));
-  log(`[seed] Administrador ${admin.email} creado.`);
+    `INSERT INTO users (id, full_name, username, password_hash, role) VALUES (?, ?, lower(?), ?, 'ADMIN')`,
+  ).run(randomUUID(), admin.name ?? 'Administrador', admin.username, bcrypt.hashSync(admin.password, 12));
+  log(`[seed] Administrador ${admin.username} creado.`);
 };

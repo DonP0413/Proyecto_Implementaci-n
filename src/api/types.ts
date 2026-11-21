@@ -32,7 +32,8 @@ export interface ApiErrorBody {
 export interface User {
   id: string;
   fullName: string;
-  email: string;
+  /** Nombre de usuario para iniciar sesión. */
+  username: string;
   role: UserRole;
   isActive: boolean;
   lastLoginAt: string | null;
@@ -168,7 +169,8 @@ export interface Accessory {
 
 export interface WorkOrderDetail extends WorkOrderSummary {
   receivedBy: PersonRef | null;
-  allowedTransitions: Array<{ status: WorkOrderStatus; label: string }>;
+  /** notePrompt: si no es null, la transición exige una nota con ese motivo. */
+  allowedTransitions: Array<{ status: WorkOrderStatus; label: string; notePrompt: string | null }>;
   actions: {
     canEditIntake?: boolean;
     canCreateQuotation: boolean;

@@ -3,6 +3,7 @@
  * componentes NUNCA llaman a axios directamente: usan estos endpoints a
  * través de los hooks de React Query.
  */
+import { env } from '../config/env';
 import { http, toMultipart } from './http';
 import type {
   Attachment,
@@ -31,8 +32,8 @@ const clean = <T extends object>(params: T) =>
   );
 
 export const authApi = {
-  login: (email: string, password: string) =>
-    http.post<LoginResponse>('/auth/login', { email, password }).then((r) => r.data),
+  login: (username: string, password: string) =>
+    http.post<LoginResponse>('/auth/login', { username, password }).then((r) => r.data),
   me: () => http.get<User>('/auth/me').then((r) => r.data),
 };
 
@@ -105,27 +106,41 @@ export const catalogApi = {
 
 export const usersApi = {
   list: () => http.get<User[]>('/users').then((r) => r.data),
-  create: (data: { fullName: string; email: string; password: string; role: UserRole }) =>
+  create: (data: { fullName: string; username: string; password: string; role: UserRole }) =>
     http.post<User>('/users', data).then((r) => r.data),
   update: (id: string, data: Partial<{ fullName: string; role: UserRole; isActive: boolean }>) =>
     http.patch<User>(`/users/${id}`, data).then((r) => r.data),
   resetPassword: (id: string, password: string) => http.put(`/users/${id}/password`, { password }),
 };
 
-/** Descarga un recurso protegido (requiere token) como blob: URL local + nombre de archivo sugerido. */
-export const fetchProtectedFile = async (path: string): Promise<{ url: string; filename: string }> => {
-  const response = await http.get<Blob>(path, { responseType: 'blob' });
-  const disposition = String(response.headers['content-disposition'] ?? '');
-  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
-  const plain = /filename="?([^";]+)"?/i.exec(disposition)?.[1];
-  const filename = encoded ? decodeURIComponent(encoded) : (plain ?? 'documento.pdf');
-  return { url: URL.createObjectURL(response.data), filename };
-};
-
-/** Descarga un recurso protegido (requiere token) y lo abre en una pestaña nueva. */
+/**
+ * Abre un archivo protegido (PDF de la orden o adjunto) en una pestaña/ventana nueva
+ * con su URL REAL: el servidor envía Content-Type y Content-Disposition, así que al
+ * guardarlo se propone un nombre claro con extensión (p. ej. Comprobante_Ingreso_PT-2026-000001.pdf).
+ * Antes se abría como blob:, que perdía nombre y extensión.
+ * Una pestaña no puede enviar el header Authorization: se pide un enlace temporal
+ * (2 min, sólo para esta ruta) y se pasa como ?dl=<token>.
+ * Debe llamarse dentro del clic: la pestaña se abre antes de esperar a la API para
+ * que el bloqueador de ventanas emergentes no la impida.
+ */
 export const openProtectedFile = async (path: string): Promise<void> => {
-  const response = await http.get<Blob>(path, { responseType: 'blob' });
-  const url = URL.createObjectURL(response.data);
-  window.open(url, '_blank', 'noopener');
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  const tab = window.open('', '_blank');
+  try {
+    const { data } = await http.post<{ token: string }>('/auth/download-token', { path });
+    const url = new URL(`${env.apiUrl}${path}`, window.location.href);
+    url.searchParams.set('dl', data.token);
+    if (tab) {
+      tab.opener = null;
+      tab.location.href = url.toString();
+      return;
+    }
+    // Ventanas emergentes bloqueadas: se descarga con el nombre que envía el servidor.
+    const link = document.createElement('a');
+    link.href = url.toString();
+    link.download = '';
+    link.click();
+  } catch (error) {
+    tab?.close();
+    throw error;
+  }
 };

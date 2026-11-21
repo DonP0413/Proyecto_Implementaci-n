@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Brackets, DataSource } from 'typeorm';
 import { addDays, startOfLocalDay, toDbDatetime } from '../../../common/time/local-date';
+import { normalizedLike } from '../../../common/database/search-normalize';
 import { WorkOrderStatus } from '../domain/work-order-status';
 
 /** SQLite no tiene carácter de escape por defecto en LIKE. */
@@ -56,11 +57,11 @@ export class WorkOrdersQueryRepository {
         new Brackets((w) =>
           w
             .where(`wo.code LIKE :q ${ESC}`, { q: like(filters.q!) })
-            .orWhere(`c.fullName LIKE :q ${ESC}`)
-            .orWhere(`c.email LIKE :q ${ESC}`)
+            .orWhere(normalizedLike('c.fullName', 'q', ESC))
+            .orWhere(normalizedLike('c.email', 'q', ESC))
             .orWhere(`c.documentId LIKE :q ${ESC}`)
             .orWhere(`e.serialNumber LIKE :q ${ESC}`)
-            .orWhere(`e.model LIKE :q ${ESC}`),
+            .orWhere(normalizedLike('e.model', 'q', ESC)),
         ),
       );
     }
@@ -69,8 +70,8 @@ export class WorkOrdersQueryRepository {
       qb.andWhere(
         new Brackets((w) =>
           w
-            .where(`c.fullName LIKE :client ${ESC}`, { client: like(filters.client!) })
-            .orWhere(`c.email LIKE :client ${ESC}`)
+            .where(normalizedLike('c.fullName', 'client', ESC), { client: like(filters.client!) })
+            .orWhere(normalizedLike('c.email', 'client', ESC))
             .orWhere(`c.documentId LIKE :client ${ESC}`),
         ),
       );

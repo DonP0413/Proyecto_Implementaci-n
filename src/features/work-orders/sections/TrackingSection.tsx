@@ -13,33 +13,61 @@ import { formatDateTime } from '../../../lib/format';
 import { useAuthStore } from '../../../stores/authStore';
 import { toast } from '../../../stores/toastStore';
 import { StatusBadge } from '../components/StatusBadge';
-import { STATUS_LABELS, STATUS_ORDER } from '../constants';
+import { NEXT_STEP, STATUS_LABELS, STATUS_ORDER, type WorkOrderTab } from '../constants';
 import { useAssignTechnician, useChangeStatus, useTechnicians } from '../hooks';
 
-export function TrackingSection({ wo }: { wo: WorkOrderDetail }) {
+/** Igual que MIN_STATUS_NOTE_LENGTH del backend (work-order-status.ts). */
+const MIN_STATUS_NOTE_LENGTH = 5;
+
+const TAB_NAMES: Record<WorkOrderTab, string> = {
+  reception: 'Recepción',
+  tracking: 'Seguimiento',
+  quotation: 'Cotización',
+  technical: 'Registro técnico',
+  delivery: 'Entrega',
+};
+
+export function TrackingSection({ wo, onGoToTab }: { wo: WorkOrderDetail; onGoToTab?: (tab: WorkOrderTab) => void }) {
   const hasRole = useAuthStore((s) => s.hasRole);
   const canOperate = hasRole('RECEPCIONISTA', 'TECNICO');
   const [target, setTarget] = useState<WorkOrderStatus | null>(null);
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [noteError, setNoteError] = useState<string | null>(null);
 
   const changeStatus = useChangeStatus(wo.id);
   const assign = useAssignTechnician(wo.id);
   const { data: technicians } = useTechnicians();
 
+  const selected = wo.allowedTransitions.find((t) => t.status === target);
+  const notePrompt = selected?.notePrompt ?? null;
+
+  const closeDialog = () => {
+    setTarget(null);
+    setNote('');
+    setNoteError(null);
+  };
+
   const confirmChange = async () => {
     if (!target) return;
+    // Caminos alternativos (p. ej. reparar sin cotizar): el motivo es obligatorio y queda en el historial.
+    if (notePrompt && note.trim().length < MIN_STATUS_NOTE_LENGTH) {
+      setNoteError(`Escriba el motivo (mínimo ${MIN_STATUS_NOTE_LENGTH} caracteres).`);
+      return;
+    }
     try {
       await changeStatus.mutateAsync({ status: target, note: note.trim() || undefined });
       toast.success('Estado actualizado');
-      setTarget(null);
-      setNote('');
+      closeDialog();
     } catch (e) {
       toast.error(getErrorMessage(e));
     }
   };
 
   const allowedStatuses = new Set(wo.allowedTransitions.map((t) => t.status));
+  /** Caminos alternativos: permitidos, pero exigen motivo (se muestran como secundarios). */
+  const alternativeStatuses = new Set(wo.allowedTransitions.filter((t) => t.notePrompt).map((t) => t.status));
+  const nextStep = NEXT_STEP[wo.status];
 
   const handleTransitionClick = (status: WorkOrderStatus) => {
     if (allowedStatuses.has(status)) {
@@ -78,6 +106,20 @@ export function TrackingSection({ wo }: { wo: WorkOrderDetail }) {
           <p className="muted">Su rol sólo permite consultar.</p>
         ) : (
           <>
+            {nextStep && nextStep.tab !== 'tracking' && (
+              <Alert kind="info">
+                <div className="review-head">
+                  <span>
+                    <strong>Siguiente paso:</strong> {nextStep.text} en la pestaña <strong>{TAB_NAMES[nextStep.tab]}</strong>.
+                  </span>
+                  {onGoToTab && (
+                    <Button size="sm" onClick={() => onGoToTab(nextStep.tab)}>
+                      Ir a {TAB_NAMES[nextStep.tab]}
+                    </Button>
+                  )}
+                </div>
+              </Alert>
+            )}
             <p className="muted">
               Mover a: <span className="status-move-legend">estados disponibles ahora</span>
             </p>
@@ -85,15 +127,28 @@ export function TrackingSection({ wo }: { wo: WorkOrderDetail }) {
             <div className="button-row">
               {STATUS_ORDER.filter((s) => s !== wo.status).map((status) => {
                 const isAllowed = allowedStatuses.has(status);
+                const isAlternative = alternativeStatuses.has(status);
+                const className = !isAllowed
+                  ? 'status-move status-move-blocked'
+                  : isAlternative
+                    ? 'status-move status-move-alt'
+                    : 'status-move status-move-allowed';
                 return (
                   <Button
                     key={status}
-                    variant={isAllowed ? 'primary' : 'secondary'}
-                    className={isAllowed ? 'status-move status-move-allowed' : 'status-move status-move-blocked'}
-                    title={isAllowed ? 'Cambiar a este estado' : 'No disponible desde el estado actual'}
+                    variant={isAllowed && !isAlternative ? 'primary' : 'secondary'}
+                    className={className}
+                    title={
+                      !isAllowed
+                        ? 'No disponible desde el estado actual'
+                        : isAlternative
+                          ? 'Camino alternativo: se pedirá el motivo'
+                          : 'Cambiar a este estado'
+                    }
                     onClick={() => handleTransitionClick(status)}
                   >
                     {STATUS_LABELS[status]}
+                    {isAlternative && <small className="status-move-note">requiere motivo</small>}
                   </Button>
                 );
               })}
@@ -144,14 +199,29 @@ export function TrackingSection({ wo }: { wo: WorkOrderDetail }) {
         title="Cambiar estado"
         confirmLabel="Cambiar estado"
         loading={changeStatus.isPending}
-        onCancel={() => setTarget(null)}
+        onCancel={closeDialog}
         onConfirm={confirmChange}
         message={
           <>
             <p>
-              La orden <strong>{wo.code}</strong> pasará a <strong>{wo.allowedTransitions.find((t) => t.status === target)?.label}</strong>.
+              La orden <strong>{wo.code}</strong> pasará a <strong>{selected?.label}</strong>.
             </p>
-            <Textarea label="Nota (opcional)" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
+            {notePrompt && (
+              <Alert kind="warning">
+                Este no es el camino habitual del proceso. <strong>{notePrompt}.</strong> El motivo quedará en el historial de estados.
+              </Alert>
+            )}
+            <Textarea
+              label={notePrompt ? 'Motivo del cambio' : 'Nota (opcional)'}
+              required={!!notePrompt}
+              value={note}
+              maxLength={500}
+              error={noteError ?? undefined}
+              onChange={(e) => {
+                setNote(e.target.value);
+                if (noteError) setNoteError(null);
+              }}
+            />
           </>
         }
       />

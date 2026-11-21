@@ -10,8 +10,9 @@ export class UserEntity {
   @Column({ name: 'full_name', type: 'varchar', length: 120 })
   fullName: string;
 
+  /** Nombre de usuario para iniciar sesión (único, sin distinguir mayúsculas). */
   @Column({ type: 'varchar', length: 160 })
-  email: string;
+  username: string;
 
   @Column({ name: 'password_hash', type: 'varchar', length: 100, select: false })
   passwordHash: string;

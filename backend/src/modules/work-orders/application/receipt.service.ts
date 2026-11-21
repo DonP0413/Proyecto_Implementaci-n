@@ -21,7 +21,12 @@ import {
   POWER_STATUS_LABELS,
 } from '../domain/work-order.enums';
 import type { WorkOrderEntity } from '../infrastructure/entities';
-import { ReceiptData, ReceiptPdfGenerator, WorkOrderPdfBase } from '../infrastructure/receipt-pdf.generator';
+import {
+  PdfPhoto,
+  ReceiptData,
+  ReceiptPdfGenerator,
+  WorkOrderPdfBase,
+} from '../infrastructure/receipt-pdf.generator';
 import { WorkOrdersRepository } from '../infrastructure/work-orders.repository';
 import { formatDate, formatDateTime, formatMoney } from './formatters';
 import type { ValidatedFile } from './file-upload.policy';
@@ -42,7 +47,7 @@ export class ReceiptService {
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
   ) {}
 
-  buildData(wo: WorkOrderEntity, photo?: Pick<ValidatedFile, 'buffer' | 'mimeType'>): ReceiptData {
+  buildData(wo: WorkOrderEntity, photos: PdfPhoto[] = []): ReceiptData {
     const rc = wo.receptionCondition;
     return {
       ...this.base(wo),
@@ -54,31 +59,33 @@ export class ReceiptService {
         functionalNotes: rc?.functionalNotes,
       },
       estimatedDeliveryDate: wo.estimatedDeliveryDate ? formatDate(wo.estimatedDeliveryDate) : null,
-      photo: photo ? { content: photo.buffer, mimeType: photo.mimeType } : undefined,
+      photos,
     };
   }
 
-  generate(wo: WorkOrderEntity, photo?: Pick<ValidatedFile, 'buffer' | 'mimeType'>): Promise<Buffer> {
-    return this.generator.generate(this.buildData(wo, photo));
+  /**
+   * Comprobante de ingreso con TODAS las fotos de recepción. Al registrar la orden
+   * se pasan las fotos recién validadas; en cualquier otro momento se leen del
+   * almacenamiento (incluye fotos agregadas después del ingreso).
+   */
+  async generate(
+    wo: WorkOrderEntity,
+    photos?: Array<Pick<ValidatedFile, 'buffer' | 'mimeType'>>,
+  ): Promise<Buffer> {
+    const pdfPhotos = photos
+      ? photos.map((p) => ({ content: p.buffer, mimeType: p.mimeType }))
+      : await this.loadPhotos(wo.id, AttachmentCategory.RECEPTION_PHOTO);
+    return this.generator.generate(this.buildData(wo, pdfPhotos));
   }
 
+  /**
+   * Se genera siempre con los datos y fotos actuales (como los otros dos PDF), para
+   * que incluya las fotos agregadas después del ingreso y las correcciones del ingreso.
+   * La copia guardada al registrar la orden queda como respaldo en los adjuntos.
+   */
   async getReceipt(workOrderId: string): Promise<PdfFile> {
-    const manager = this.dataSource.manager;
     const wo = await this.load(workOrderId);
-    const filename = `comprobante-ingreso-${wo.code}.pdf`;
-    const [stored] = await this.workOrders.findAttachmentsByCategory(
-      workOrderId,
-      [AttachmentCategory.RECEIPT_PDF],
-      manager,
-    );
-    if (stored) {
-      try {
-        return { filename, stream: await this.storage.stream(stored.storageKey) };
-      } catch {
-        // si el archivo físico se perdió, se regenera abajo
-      }
-    }
-    return { filename, stream: Readable.from(await this.generate(wo)) };
+    return { filename: `Comprobante_Ingreso_${wo.code}.pdf`, stream: Readable.from(await this.generate(wo)) };
   }
 
   async getQuotationPdf(workOrderId: string): Promise<PdfFile> {
@@ -101,7 +108,7 @@ export class ReceiptService {
         createdBy: quotation.createdBy?.fullName ?? null,
       },
     });
-    return { filename: `cotizacion-${wo.code}.pdf`, stream: Readable.from(pdf) };
+    return { filename: `Cotizacion_${wo.code}.pdf`, stream: Readable.from(pdf) };
   }
 
   async getReadyForPickupPdf(workOrderId: string): Promise<PdfFile> {
@@ -115,6 +122,7 @@ export class ReceiptService {
     }
     const quotation = this.latestQuotation(wo);
     const dr = wo.deliveryRecord;
+    const photos = dr ? await this.loadPhotos(wo.id, AttachmentCategory.DELIVERY_PHOTO) : [];
     const pdf = await this.generator.generateReadyForPickup({
       ...this.base(wo),
       issuedAt: formatDateTime(new Date(), this.timeZone()),
@@ -133,12 +141,34 @@ export class ReceiptService {
             deliveredBy: dr.deliveredBy?.fullName ?? null,
           }
         : null,
+      photos,
     });
-    const prefix = dr ? 'comprobante-entrega' : 'listo-para-entregar';
-    return { filename: `${prefix}-${wo.code}.pdf`, stream: Readable.from(pdf) };
+    const prefix = dr ? 'Comprobante_Entrega' : 'Equipo_Listo_Para_Entregar';
+    return { filename: `${prefix}_${wo.code}.pdf`, stream: Readable.from(pdf) };
   }
 
   // ---------------------------------------------------------------- helpers
+
+  /** Lee del almacenamiento las fotos de una categoría (en orden de carga). Una foto perdida se omite. */
+  private async loadPhotos(workOrderId: string, category: AttachmentCategory): Promise<PdfPhoto[]> {
+    const attachments = await this.workOrders.findAttachmentsByCategory(
+      workOrderId,
+      [category],
+      this.dataSource.manager,
+    );
+    const photos: PdfPhoto[] = [];
+    for (const attachment of attachments) {
+      try {
+        photos.push({
+          content: await this.storage.read(attachment.storageKey),
+          mimeType: attachment.mimeType,
+        });
+      } catch {
+        // archivo físico perdido: el PDF se genera igual, sin esa foto
+      }
+    }
+    return photos;
+  }
 
   private async load(workOrderId: string): Promise<WorkOrderEntity> {
     const wo = await this.workOrders.findForClientDocuments(workOrderId, this.dataSource.manager);

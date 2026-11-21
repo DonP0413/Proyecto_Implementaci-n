@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { formatBytes } from '../../../lib/format';
+import { convertWebpToJpeg } from '../../../lib/images';
 import { toast } from '../../../stores/toastStore';
 import { MAX_FILE_MB } from '../constants';
 
@@ -78,7 +79,7 @@ export function FilePicker({ label, files, onChange, accept, maxFiles, imagesOnl
         errors.push(`El contenido de "${file.name}" no corresponde a una fotografía válida (JPG, PNG o WEBP).`);
         continue;
       }
-      valid.push(file);
+      valid.push(imagesOnly ? await convertWebpToJpeg(file) : file);
     }
 
     if (files.length + valid.length > maxFiles) {

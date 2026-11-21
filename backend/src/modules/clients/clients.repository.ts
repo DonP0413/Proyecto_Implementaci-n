@@ -6,6 +6,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
+import { normalizedLike } from '../../common/database/search-normalize';
 import { ClientEntity } from './client.entity';
 
 /** SQLite no tiene carácter de escape por defecto en LIKE. */
@@ -39,7 +40,7 @@ export class ClientsRepository {
     const qb = this.repository.createQueryBuilder('c').orderBy('c.fullName', 'ASC');
     if (q) {
       qb.where(
-        `(c.fullName LIKE :like ${ESC} OR c.email LIKE :like ${ESC} OR c.documentId LIKE :like ${ESC} OR c.phone LIKE :like ${ESC})`,
+        `(${normalizedLike('c.fullName', 'like', ESC)} OR ${normalizedLike('c.email', 'like', ESC)} OR c.documentId LIKE :like ${ESC} OR c.phone LIKE :like ${ESC})`,
         { like: `%${q.replace(/[%_\\]/g, '\\$&')}%` },
       );
     }

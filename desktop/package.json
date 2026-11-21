@@ -1,0 +1,58 @@
+{
+  "name": "pintotech-desktop",
+  "productName": "PINTOTECH",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Aplicación de escritorio de PINTOTECH (Electron): incluye servidor, base de datos e interfaz",
+  "author": "PINTOTECH",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "install-electron",
+    "preparar": "node scripts/preparar.mjs",
+    "start": "node scripts/preparar.mjs && electron .",
+    "start:rapido": "electron .",
+    "empaquetar": "node scripts/preparar.mjs && electron-builder --win --dir",
+    "instalador": "node scripts/preparar.mjs && electron-builder --win"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.1",
+    "electron": "^42.11.18",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.pintotech.app",
+    "productName": "PINTOTECH",
+    "directories": {
+      "output": "release",
+      "buildResources": "recursos"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "servidor",
+        "to": "servidor"
+      }
+    ],
+    "npmRebuild": false,
+    "asar": true,
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "PINTOTECH",
+      "uninstallDisplayName": "PINTOTECH",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

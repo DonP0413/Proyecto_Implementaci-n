@@ -75,8 +75,9 @@ export class ClientsService {
     }
     const byDocument = await this.clients.findByDocumentId(data.documentId, manager);
     if (byDocument) {
-      // Cliente ya registrado: se actualiza su contacto, pero se conserva su fecha de ingreso original.
-      Object.assign(byDocument, this.toEntityData({ ...data, registeredAt: undefined }));
+      // Cliente ya registrado: se actualiza su CONTACTO (correo, teléfono, dirección), pero se
+      // conservan su nombre y su fecha de ingreso. Antes se sobrescribía el nombre sin avisar.
+      Object.assign(byDocument, this.toEntityData({ ...data, fullName: undefined, registeredAt: undefined }));
       return this.clients.save(byDocument, manager);
     }
     return this.clients.save(this.clients.create(this.toNewEntityData(data), manager), manager);

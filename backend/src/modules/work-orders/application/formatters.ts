@@ -1,6 +1,6 @@
 /**
- * Objetivo: formateo localizado (es-EC) de fechas y montos para correos y
- * comprobantes. Ecuador usa USD; la zona horaria es configurable.
+ * Objetivo: formateo localizado (es-EC) de fechas y montos para comprobantes
+ * PDF. Ecuador usa USD; la zona horaria es configurable.
  */
 export const formatMoney = (amount: number): string =>
   new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(

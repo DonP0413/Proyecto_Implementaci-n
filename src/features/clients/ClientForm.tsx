@@ -61,7 +61,7 @@ export function ClientForm({ client, onDone, onSaved }: Props) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <Input label="Nombre completo" required placeholder="Ej.: María Fernanda Pérez" error={errors.fullName?.message} {...register('fullName')} />
-      <Input label="Cédula / RUC" required placeholder="Ej.: 1718123456" error={errors.documentId?.message} {...register('documentId')} />
+      <Input label="Cédula / RUC" required inputMode="numeric" maxLength={13} placeholder="Ej.: 1718123456" error={errors.documentId?.message} {...register('documentId')} />
       <Input label="Correo electrónico" type="email" required placeholder="Ej.: maria.perez@gmail.com" error={errors.email?.message} {...register('email')} />
       <Input label="Teléfono" type="tel" placeholder="Ej.: 0991234567" error={errors.phone?.message} {...register('phone')} />
       <Input label="Dirección" placeholder="Ej.: Av. Amazonas N34-12 y Naciones Unidas" error={errors.address?.message} {...register('address')} />
