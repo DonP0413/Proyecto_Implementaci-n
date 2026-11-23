@@ -1,7 +1,7 @@
 {
   "name": "pintotech-desktop",
   "productName": "PINTOTECH",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "private": true,
   "description": "Aplicación de escritorio de PINTOTECH (Electron): incluye servidor, base de datos e interfaz",
   "author": "PINTOTECH",

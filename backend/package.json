@@ -1,6 +1,6 @@
 {
   "name": "pintotech-backend",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "API REST de PINTOTECH - gestión y seguimiento de reparación de equipos electrónicos",
   "private": true,
   "license": "UNLICENSED",
