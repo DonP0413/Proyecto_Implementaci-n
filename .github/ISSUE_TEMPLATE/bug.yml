@@ -1,0 +1,34 @@
+name: Reporte de error
+description: Algo no funciona como se espera
+title: '[BUG] '
+labels: [bug]
+body:
+  - type: dropdown
+    id: env
+    attributes:
+      label: Entorno
+      options: [Desarrollo, QA/Staging, Producción]
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      value: |
+        1.
+        2.
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado vs. obtenido
+    validations: { required: true }
+  - type: input
+    id: request
+    attributes:
+      label: x-request-id / ID de trabajo (si aplica)
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severidad
+      options: [Baja, Media, Alta, Crítica (bloquea operación)]
+    validations: { required: true }

@@ -1,0 +1,51 @@
+# Dependencias
+node_modules/
+
+# Builds y análisis
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.eslintcache
+.scannerwork/
+
+# Variables de entorno (NUNCA versionar secretos)
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Base de datos SQLite local, archivos subidos y respaldos locales
+backend/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+backend/storage/
+backend/storage-e2e/
+/storage/
+backups/
+*.dump
+*.sql.gz
+*.tar.gz
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE / SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Paquetes de entrega por integrante (no se versionan)
+entregas/
+*.zip
+*.rar
+
+# Archivos Markdown (no se versionan)
+*.md
