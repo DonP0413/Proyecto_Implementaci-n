@@ -5,7 +5,5 @@
 /database/              @JORGE_GITHUB_USER @ERICK_GITHUB_USER
 /frontend/              @MIGUEL_GITHUB_USER
 /.github/               @ERICK_GITHUB_USER
-/docker-compose*.yml    @ERICK_GITHUB_USER
-/infra/                 @ERICK_GITHUB_USER
 /scripts/               @ERICK_GITHUB_USER
 /docs/                  @ERICK_GITHUB_USER

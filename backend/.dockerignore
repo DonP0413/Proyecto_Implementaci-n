@@ -1,7 +1,0 @@
-node_modules
-dist
-coverage
-/storage
-/storage-e2e
-.env
-*.log
